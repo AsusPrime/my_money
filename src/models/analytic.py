@@ -13,61 +13,29 @@ class Analytic(Base):
     account = relationship("Account", back_populates="analytics")
 
     id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-        nullable=False,
-        autoincrement=True
+        Integer, primary_key=True, nullable=False, autoincrement=True
     )
-    start_date: Mapped[date] = mapped_column(
-        Date,
-        nullable=False
-    )
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(
         Date,
         nullable=False,
     )
-    date_range: Mapped[RangeEnum] = mapped_column(
-        String(50),
-        nullable=False
-    )
-    analytic_type: Mapped[AnalyticTypeEnum] = mapped_column(
-        String(50),
-        nullable=False
-    )
-    asset_realized_pnl: Mapped[Decimal] = mapped_column(
-        DECIMAL(20, 8),
-        nullable=False
-    )
+    date_range: Mapped[RangeEnum] = mapped_column(String(50), nullable=False)
+    analytic_type: Mapped[AnalyticTypeEnum] = mapped_column(String(50), nullable=False)
+    asset_realized_pnl: Mapped[Decimal] = mapped_column(DECIMAL(20, 8), nullable=False)
     asset_unrealized_pnl: Mapped[Decimal] = mapped_column(
-        DECIMAL(20, 8),
-        nullable=False
+        DECIMAL(20, 8), nullable=False
     )
-    asset_roi: Mapped[Decimal] = mapped_column(
-        DECIMAL(20, 8),
-        nullable=False
-    )
-    fx_realized_pnl: Mapped[Decimal] = mapped_column(
-        DECIMAL(20, 8),
-        nullable=False
-    )
-    fx_unrealized_pnl: Mapped[Decimal] = mapped_column(
-        DECIMAL(20, 8),
-        nullable=False
-    )
-    fx_roi: Mapped[Decimal] = mapped_column(
-        DECIMAL(20, 8),
-        nullable=False
-    )
+    asset_roi: Mapped[Decimal] = mapped_column(DECIMAL(20, 8), nullable=False)
+    fx_realized_pnl: Mapped[Decimal] = mapped_column(DECIMAL(20, 8), nullable=False)
+    fx_unrealized_pnl: Mapped[Decimal] = mapped_column(DECIMAL(20, 8), nullable=False)
+    fx_roi: Mapped[Decimal] = mapped_column(DECIMAL(20, 8), nullable=False)
 
     balance_id: Mapped[int | None] = mapped_column(
-        Integer,
-        ForeignKey("balances.id", ondelete="CASCADE"),
-        nullable=True
+        Integer, ForeignKey("balances.id", ondelete="CASCADE"), nullable=True
     )
     account_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("accounts.id", ondelete="CASCADE"),
-        nullable=False
+        Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

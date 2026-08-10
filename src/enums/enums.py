@@ -8,6 +8,7 @@ class CurrencyTypeEnum(str, Enum):
     CRYPTO = "crypto"
     OTHER = "other"
 
+
 class OperationTypeEnum(str, Enum):
     INCOME = "income"
     EXPENSE = "expense"
@@ -15,10 +16,12 @@ class OperationTypeEnum(str, Enum):
     TRADE = "trade"
     FEE = "fee"
 
+
 class RangeEnum(str, Enum):
     MONTH = "month"
     QUARTER = "quarter"
     YEAR = "year"
+
 
 class AnalyticTypeEnum(str, Enum):
     BY_BALANCE = "by_balance"

@@ -27,9 +27,7 @@ class Ledger(Base):
     amount: Mapped[Decimal] = mapped_column(DECIMAL(20, 8), nullable=False)
     counterparty: Mapped[str | None] = mapped_column(String(255), nullable=True)
     currency_ticker: Mapped[str] = mapped_column(
-        String(15),
-        ForeignKey("currencies.ticker", ondelete="RESTRICT"),
-        nullable=False
+        String(15), ForeignKey("currencies.ticker", ondelete="RESTRICT"), nullable=False
     )
     balance_id: Mapped[int] = mapped_column(
         Integer,
