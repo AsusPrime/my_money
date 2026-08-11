@@ -1,5 +1,4 @@
 from datetime import datetime
-from uuid import UUID
 
 from pydantic import BaseModel
 from pydantic import ConfigDict
@@ -9,7 +8,7 @@ class AccountResponseSchema(BaseModel):
     id: int
     name: str
     base_currency_ticker: str
-    createdAt: datetime
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

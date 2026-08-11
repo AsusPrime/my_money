@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from fastapi import APIRouter
 from fastapi import status
 from loguru import logger
@@ -27,14 +25,14 @@ async def get_accounts_api(uow: UOWDep, account_service: AccountServiceDep):
 
 
 @router.get(
-    "/{accountId}",
+    "/{account_id}",
     response_model=AccountResponseSchema,
     status_code=status.HTTP_200_OK,
 )
 async def get_account_api(
-    accountId: UUID, uow: UOWDep, account_service: AccountServiceDep
+    account_id: int, uow: UOWDep, account_service: AccountServiceDep
 ):
-    return await account_service.get_account_by_id(uow=uow, accountId=accountId)
+    return await account_service.get_account_by_id(uow=uow, account_id=account_id)
 
 
 @router.post(
@@ -51,28 +49,28 @@ async def create_account_api(
 
 
 @router.patch(
-    "/{accountId}",
+    "/{account_id}",
     response_model=AccountResponseSchema,
     status_code=status.HTTP_200_OK,
 )
 async def update_account_api(
-    accountId: UUID,
+    account_id: int,
     body: AccountUpdateSchema,
     uow: UOWDep,
     account_service: AccountServiceDep,
 ):
     updated_account = await account_service.update_account_by_id(
-        uow=uow, accountId=accountId, account_data=body
+        uow=uow, account_id=account_id, account_data=body
     )
-    logger.info(f"Account updated: {accountId}")
+    logger.info(f"Account updated: {account_id}")
     return updated_account
 
 
 @router.delete(
-    "/{accountId}",
+    "/{account_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_account_api(
-    accountId: UUID, uow: UOWDep, account_service: AccountServiceDep
+    account_id: int, uow: UOWDep, account_service: AccountServiceDep
 ):
-    await account_service.delete_account_by_id(uow=uow, accountId=accountId)
+    await account_service.delete_account_by_id(uow=uow, account_id=account_id)
