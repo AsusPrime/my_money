@@ -11,6 +11,11 @@ class Messages(str, Enum):
     CURRENCY_ALREADY_EXISTS = "Currency already exists"
     CURRENCY_IN_USE = "Currency is still in use and cannot be deleted"
     ERROR_FILLED_TO_ADD_NEW_CURRENCY = "Error filled to add new currency"
+    BALANCE_NOT_FOUND = "Balance not found"
+    ERROR_FILLED_TO_ADD_NEW_BALANCE = "Error filled to add new balance"
+    BALANCE_HAS_NONZERO_AMOUNT = (
+        "Balance still has a non-zero amount on it — transfer or write it off before archiving"
+    )
 
     def __str__(self):
         return self.value

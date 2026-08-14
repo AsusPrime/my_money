@@ -3,7 +3,9 @@ from abc import abstractmethod
 
 from src.db.database import async_session
 from src.repositories.account import AccountRepository
+from src.repositories.balance import BalanceRepository
 from src.repositories.currency import CurrencyRepository
+from src.repositories.ledger import LedgerRepository
 
 
 class IUnitOfWork(ABC):
@@ -14,6 +16,8 @@ class IUnitOfWork(ABC):
 
     accounts: AccountRepository
     currencies: CurrencyRepository
+    balances: BalanceRepository
+    ledgers: LedgerRepository
 
     @abstractmethod
     def __init__(self):
@@ -49,6 +53,8 @@ class UnitOfWork(IUnitOfWork):
         self.session = self.session_factory()
         self.accounts = AccountRepository(self.session)
         self.currencies = CurrencyRepository(self.session)
+        self.balances = BalanceRepository(self.session)
+        self.ledgers = LedgerRepository(self.session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

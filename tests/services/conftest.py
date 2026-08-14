@@ -12,6 +12,8 @@ class FakeUnitOfWork(IUnitOfWork):
     def __init__(self):
         self.accounts = AsyncMock()
         self.currencies = AsyncMock()
+        self.balances = AsyncMock()
+        self.ledgers = AsyncMock()
         self.committed = False
         self.rolled_back = False
 
@@ -60,4 +62,20 @@ def make_currency_row(
         ticker=ticker,
         name=name,
         currency_type=currency_type,
+    )
+
+
+def make_balance_row(
+    id: int = 1,
+    name: str = "Cash",
+    account_id: int = 1,
+    is_archived: bool = False,
+    created_at: datetime | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=id,
+        name=name,
+        account_id=account_id,
+        is_archived=is_archived,
+        created_at=created_at or datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
