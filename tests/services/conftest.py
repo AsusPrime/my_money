@@ -1,10 +1,14 @@
 from datetime import datetime
 from datetime import timezone
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from uuid import UUID
+from uuid import uuid4
 
 import pytest
 
+from src.enums.enums import OperationTypeEnum
 from src.utils.uow.unitofwork import IUnitOfWork
 
 
@@ -78,4 +82,28 @@ def make_balance_row(
         account_id=account_id,
         is_archived=is_archived,
         created_at=created_at or datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+
+def make_ledger_row(
+    id: int = 1,
+    operation_id: UUID | None = None,
+    balance_id: int = 1,
+    currency_ticker: str = "USD",
+    amount: Decimal = Decimal("100"),
+    operation_type: OperationTypeEnum = OperationTypeEnum.INCOME,
+    counterparty: str | None = None,
+    note: str | None = None,
+    executed_at: datetime | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=id,
+        operation_id=operation_id or uuid4(),
+        balance_id=balance_id,
+        currency_ticker=currency_ticker,
+        amount=amount,
+        operation_type=operation_type,
+        counterparty=counterparty,
+        note=note,
+        executed_at=executed_at or datetime(2026, 1, 1, tzinfo=timezone.utc),
     )

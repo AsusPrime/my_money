@@ -75,10 +75,11 @@ class TestCreateCurrency:
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
 
         with pytest.raises(AlreadyExistsError) as exc_info:
-            await CurrencyService.create_currency(
-                uow=uow,
-                currency_data=CurrencyCreateSchema(ticker="USD", name="US Dollar", currency_type="fiat"),
-            )
+            async with uow:
+                await CurrencyService.create_currency(
+                    uow=uow,
+                    currency_data=CurrencyCreateSchema(ticker="USD", name="US Dollar", currency_type="fiat"),
+                )
 
         assert exc_info.value.message == Messages.CURRENCY_ALREADY_EXISTS
         uow.currencies.add_one.assert_not_called()
@@ -122,7 +123,8 @@ class TestDeleteCurrencyByTicker:
     async def test_deletes_currency_when_not_referenced(self, uow):
         uow.currencies.delete_one.return_value = make_currency_row(ticker="EUR")
 
-        await CurrencyService.delete_currency_by_ticker(uow=uow, ticker="EUR")
+        async with uow:
+            await CurrencyService.delete_currency_by_ticker(uow=uow, ticker="EUR")
 
         uow.currencies.delete_one.assert_awaited_once_with(ticker="EUR")
         assert uow.committed is True
@@ -139,7 +141,8 @@ class TestDeleteCurrencyByTicker:
         uow.currencies.delete_one.side_effect = fk_violation()
 
         with pytest.raises(ConflictError) as exc_info:
-            await CurrencyService.delete_currency_by_ticker(uow=uow, ticker="USD")
+            async with uow:
+                await CurrencyService.delete_currency_by_ticker(uow=uow, ticker="USD")
 
         assert exc_info.value.message == Messages.CURRENCY_IN_USE
         assert uow.rolled_back is True

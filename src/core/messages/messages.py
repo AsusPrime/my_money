@@ -16,6 +16,9 @@ class Messages(str, Enum):
     BALANCE_HAS_NONZERO_AMOUNT = (
         "Balance still has a non-zero amount on it — transfer or write it off before archiving"
     )
+    BALANCE_IS_ARCHIVED = "Balance is archived and cannot be used for new operations"
+    BALANCE_INSUFFICIENT_FUNDS = "Balance does not have enough funds in this currency for this operation"
+    OPERATION_TYPE_NOT_FOUND = "Operation type not found"
 
     def __str__(self):
         return self.value

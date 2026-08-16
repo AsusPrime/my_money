@@ -13,3 +13,9 @@ class BalanceRepository(SQLAlchemyRepository):
 
         res = await self.session.execute(stmt)
         return res.scalars().all()  # noqa
+    
+    async def get_name_by_id(self, id: int) -> str | None:  # TODO: write test
+        stmt = select(self.model.name).where(self.model.id == id)
+
+        res = await self.session.execute(stmt)
+        return res.scalar_one_or_none()

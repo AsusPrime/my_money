@@ -17,7 +17,8 @@ class TestGetAllAccounts:
             make_account_row(id=2, name="Binance"),
         ]
 
-        result = await AccountService.get_all_accounts(uow=uow)
+        async with uow:
+            result = await AccountService.get_all_accounts(uow=uow)
 
         assert [a.name for a in result.items] == ["Monobank", "Binance"]
         assert uow.committed is True
@@ -67,10 +68,11 @@ class TestCreateAccount:
         uow.currencies.find_one_or_none.return_value = None
 
         with pytest.raises(NotFoundError) as exc_info:
-            await AccountService.create_account(
-                uow=uow,
-                account_data=AccountCreateSchema(name="Monobank", base_currency_ticker="XXX"),
-            )
+            async with uow:
+                await AccountService.create_account(
+                    uow=uow,
+                    account_data=AccountCreateSchema(name="Monobank", base_currency_ticker="XXX"),
+                )
 
         assert exc_info.value.message == Messages.CURRENCY_NOT_FOUND
         uow.accounts.add_one.assert_not_called()
@@ -140,7 +142,8 @@ class TestDeleteAccountById:
     async def test_deletes_account_when_found(self, uow):
         uow.accounts.delete_one.return_value = make_account_row(id=1)
 
-        await AccountService.delete_account_by_id(uow=uow, account_id=1)
+        async with uow:
+            await AccountService.delete_account_by_id(uow=uow, account_id=1)
 
         uow.accounts.delete_one.assert_awaited_once_with(_id=1)
         assert uow.committed is True

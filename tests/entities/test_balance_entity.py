@@ -78,3 +78,41 @@ class TestArchive:
 
         assert exc_info.value.message == Messages.BALANCE_HAS_NONZERO_AMOUNT
         assert row.is_archived is False
+
+
+class TestEnsureSufficientFunds:
+    async def test_passes_when_currency_has_enough_funds(self, uow):
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("100")}
+        entity = BalanceEntity(balance=make_balance_row(), uow=uow)
+
+        await entity.ensure_sufficient_funds(currency_ticker="USD", amount=Decimal("-40"))
+
+    async def test_passes_when_result_is_exactly_zero(self, uow):
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("100")}
+        entity = BalanceEntity(balance=make_balance_row(), uow=uow)
+
+        await entity.ensure_sufficient_funds(currency_ticker="USD", amount=Decimal("-100"))
+
+    async def test_raises_conflict_when_amount_exceeds_current_funds(self, uow):
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("100")}
+        entity = BalanceEntity(balance=make_balance_row(), uow=uow)
+
+        with pytest.raises(ConflictError) as exc_info:
+            await entity.ensure_sufficient_funds(currency_ticker="USD", amount=Decimal("-150"))
+
+        assert exc_info.value.message == Messages.BALANCE_INSUFFICIENT_FUNDS
+
+    async def test_raises_conflict_when_currency_is_not_on_the_balance_at_all(self, uow):
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("100")}
+        entity = BalanceEntity(balance=make_balance_row(), uow=uow)
+
+        with pytest.raises(ConflictError) as exc_info:
+            await entity.ensure_sufficient_funds(currency_ticker="EUR", amount=Decimal("-1"))
+
+        assert exc_info.value.message == Messages.BALANCE_INSUFFICIENT_FUNDS
+
+    async def test_passes_for_a_positive_amount_regardless_of_current_funds(self, uow):
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("0")}
+        entity = BalanceEntity(balance=make_balance_row(), uow=uow)
+
+        await entity.ensure_sufficient_funds(currency_ticker="USD", amount=Decimal("500"))

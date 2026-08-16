@@ -8,11 +8,11 @@ from src.utils.uow.unitofwork import IUnitOfWork
 
 class BalanceEntity:
     def __init__(self, balance: Balance, uow: IUnitOfWork) -> None:
-        self.balance = balance
-        self.uow = uow
+        self._balance = balance
+        self._uow = uow
 
     async def get_amounts(self) -> dict[str, Decimal]:
-        return await self.uow.ledgers.get_amounts_by_balance_id(balance_id=self.balance.id)
+        return await self._uow.ledgers.get_amounts_by_balance_id(balance_id=self._balance.id)
     
     async def _is_empty(self) -> bool:
         amounts = await self.get_amounts()
@@ -26,4 +26,10 @@ class BalanceEntity:
         if not await self._is_empty():
             raise ConflictError(Messages.BALANCE_HAS_NONZERO_AMOUNT)
 
-        self.balance.is_archived = True
+        self._balance.is_archived = True
+
+    async def ensure_sufficient_funds(self, currency_ticker: str, amount: Decimal) -> None:
+        amounts = await self.get_amounts()
+        current = amounts.get(currency_ticker, Decimal("0"))
+        if current + amount < 0:
+            raise ConflictError(Messages.BALANCE_INSUFFICIENT_FUNDS)

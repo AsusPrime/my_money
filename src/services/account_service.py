@@ -14,8 +14,7 @@ class AccountService:
 
     @staticmethod
     async def get_all_accounts(uow: IUnitOfWork) -> AccountListResponseSchema:
-        async with uow:
-            accounts = await uow.accounts.find_all()
+        accounts = await uow.accounts.find_all()
 
         return AccountListResponseSchema(
             items=[AccountResponseSchema.model_validate(a) for a in accounts]
@@ -25,8 +24,7 @@ class AccountService:
     async def get_account_by_id(
         uow: IUnitOfWork, account_id: int
     ) -> AccountResponseSchema:
-        async with uow:
-            account = await uow.accounts.find_one_or_none(id=account_id)
+        account = await uow.accounts.find_one_or_none(id=account_id)
 
         if account is None:
             logger.warning(f"Account {account_id} not found")
@@ -38,17 +36,16 @@ class AccountService:
     async def create_account(
         uow: IUnitOfWork, account_data: AccountCreateSchema
     ) -> AccountResponseSchema:
-        async with uow:
-            currency = await uow.currencies.find_one_or_none(
-                ticker=account_data.base_currency_ticker
+        currency = await uow.currencies.find_one_or_none(
+            ticker=account_data.base_currency_ticker
+        )
+        if currency is None:
+            logger.warning(
+                f"Currency {account_data.base_currency_ticker} not found"
             )
-            if currency is None:
-                logger.warning(
-                    f"Currency {account_data.base_currency_ticker} not found"
-                )
-                raise NotFoundError(Messages.CURRENCY_NOT_FOUND)
+            raise NotFoundError(Messages.CURRENCY_NOT_FOUND)
 
-            new_account = await uow.accounts.add_one(data=account_data.model_dump())
+        new_account = await uow.accounts.add_one(data=account_data.model_dump())
 
         if new_account is None:
             logger.error(Messages.ERROR_FILLED_TO_ADD_NEW_ACCOUNT)
@@ -60,15 +57,14 @@ class AccountService:
     async def update_account_by_id(
         uow: IUnitOfWork, account_id: int, account_data: AccountUpdateSchema
     ) -> AccountResponseSchema:
-        async with uow:
-            if account_data.base_currency_ticker:
-                ticker = await uow.currencies.find_one_or_none(ticker=account_data.base_currency_ticker)
-                if not ticker:
-                    logger.warning(f"Currency {account_data.base_currency_ticker} not found")
-                    raise NotFoundError(Messages.CURRENCY_NOT_FOUND)
-            updated_account = await uow.accounts.edit_one(
-                _id=account_id, data=account_data.model_dump(exclude_unset=True)
-            )
+        if account_data.base_currency_ticker:
+            currency = await uow.currencies.find_one_or_none(ticker=account_data.base_currency_ticker)
+            if not currency:
+                logger.warning(f"Currency {account_data.base_currency_ticker} not found")
+                raise NotFoundError(Messages.CURRENCY_NOT_FOUND)
+        updated_account = await uow.accounts.edit_one(
+            _id=account_id, data=account_data.model_dump(exclude_unset=True)
+        )
 
         if updated_account is None:
             logger.warning(f"Account {account_id} not found")
@@ -78,8 +74,7 @@ class AccountService:
 
     @staticmethod
     async def delete_account_by_id(uow: IUnitOfWork, account_id: int) -> None:
-        async with uow:
-            deleted_account = await uow.accounts.delete_one(_id=account_id)
+        deleted_account = await uow.accounts.delete_one(_id=account_id)
 
         if deleted_account is None:
             logger.error(f"Account {account_id} not found")

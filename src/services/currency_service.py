@@ -16,8 +16,7 @@ class CurrencyService:
 
     @staticmethod
     async def get_all_currencies(uow: IUnitOfWork) -> CurrencyListResponseSchema:
-        async with uow:
-            currencies = await uow.currencies.find_all()
+        currencies = await uow.currencies.find_all()
 
         return CurrencyListResponseSchema(
             items=[CurrencyResponseSchema.model_validate(a) for a in currencies]
@@ -27,8 +26,7 @@ class CurrencyService:
     async def get_currency_by_ticker(
         uow: IUnitOfWork, ticker: str
     ) -> CurrencyResponseSchema:
-        async with uow:
-            currency = await uow.currencies.find_one_or_none(ticker=ticker)
+        currency = await uow.currencies.find_one_or_none(ticker=ticker)
 
         if currency is None:
             logger.warning(f"Currency {ticker} not found")
@@ -40,12 +38,11 @@ class CurrencyService:
     async def create_currency(
         uow: IUnitOfWork, currency_data: CurrencyCreateSchema
     ) -> CurrencyResponseSchema:
-        async with uow:
-            exist_currency = await uow.currencies.find_one_or_none(ticker=currency_data.ticker)
-            if exist_currency:
-                logger.warning(f"Currency {currency_data.ticker} already exist")
-                raise AlreadyExistsError(Messages.CURRENCY_ALREADY_EXISTS)
-            new_currency = await uow.currencies.add_one(data=currency_data.model_dump())
+        existing_currency = await uow.currencies.find_one_or_none(ticker=currency_data.ticker)
+        if existing_currency:
+            logger.warning(f"Currency {currency_data.ticker} already exist")
+            raise AlreadyExistsError(Messages.CURRENCY_ALREADY_EXISTS)
+        new_currency = await uow.currencies.add_one(data=currency_data.model_dump())
 
         if new_currency is None:
             logger.error(Messages.ERROR_FILLED_TO_ADD_NEW_CURRENCY)
@@ -57,10 +54,9 @@ class CurrencyService:
     async def update_currency_by_ticker(
         uow: IUnitOfWork, ticker: str, currency_data: CurrencyUpdateSchema
     ) -> CurrencyResponseSchema:
-        async with uow:
-            updated_currency = await uow.currencies.edit_one(
-                ticker=ticker, data=currency_data.model_dump(exclude_unset=True)
-            )
+        updated_currency = await uow.currencies.edit_one(
+            ticker=ticker, data=currency_data.model_dump(exclude_unset=True)
+        )
 
         if updated_currency is None:
             logger.warning(f"Currency {ticker} not found")
@@ -70,11 +66,10 @@ class CurrencyService:
 
     @staticmethod
     async def delete_currency_by_ticker(uow: IUnitOfWork, ticker: str) -> None:
-        async with uow:
-            try:
-                deleted_currency = await uow.currencies.delete_one(ticker=ticker)
-            except IntegrityError:
-                raise ConflictError(Messages.CURRENCY_IN_USE)
+        try:
+            deleted_currency = await uow.currencies.delete_one(ticker=ticker)
+        except IntegrityError:
+            raise ConflictError(Messages.CURRENCY_IN_USE)
 
         if deleted_currency is None:
             logger.error(f"Currency {ticker} not found")
