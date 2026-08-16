@@ -1,12 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
-from typing import Union
 from uuid import UUID
 
 from pydantic import BaseModel
 from pydantic import ConfigDict
-from pydantic import Field
 from pydantic import model_validator
 
 from src.enums.enums import OperationTypeEnum
@@ -85,13 +82,3 @@ class RecordTradePayload(_FeeLegMixin):
     spend_currency_ticker: str
     receive_amount: Decimal
     receive_currency_ticker: str
-
-
-LedgerOperationPayload = Annotated[
-    Union[
-        RecordSingleLegOperationPayload,
-        RecordTransferPayload,
-        RecordTradePayload,
-    ],
-    Field(discriminator="operation_type"),
-]

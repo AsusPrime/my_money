@@ -4,7 +4,6 @@ from src.core.messages.messages import Messages
 from src.enums.enums import OperationTypeEnum
 from src.schemas.ledger import (
     LedgerListResponseSchema,
-    LedgerOperationPayload,
     LedgerResponseSchema,
     RecordSingleLegOperationPayload,
     RecordTradePayload,
@@ -19,7 +18,7 @@ class LedgerService:
 
     @staticmethod
     async def record_operation(
-        uow: IUnitOfWork, payload: LedgerOperationPayload
+        uow: IUnitOfWork, payload: RecordSingleLegOperationPayload | RecordTransferPayload | RecordTradePayload
     ) -> LedgerResponseSchema | LedgerListResponseSchema:
         if payload.operation_type in (
             OperationTypeEnum.INCOME,
@@ -124,6 +123,16 @@ class LedgerService:
             response.items.append(fee_ledger)
 
         return response
+
+    @staticmethod
+    async def get_operations_by_balance_id(
+        uow: IUnitOfWork, balance_id: int
+    ) -> LedgerListResponseSchema:
+        operations = await uow.ledgers.find_all_by_balance_id(balance_id=balance_id)
+
+        return LedgerListResponseSchema(
+            items=[LedgerResponseSchema.model_validate(o) for o in operations]
+        )
 
     @staticmethod
     async def _trade(

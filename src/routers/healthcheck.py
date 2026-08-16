@@ -4,7 +4,6 @@ from fastapi import Request
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.main import APP_VERSION
 from src.core.exceptions.exceptions import ConnectingDbError
 from src.core.messages.messages import Messages
 from src.db.database import get_session
@@ -21,7 +20,7 @@ async def health_check_api(request: Request):
     logger.info("Health check endpoint was called")
     return {
         "status_code": 200,
-        "version": getattr(request.app.state, "app_version", APP_VERSION),
+        "version": request.app.state.app_version,
     }
 
 
