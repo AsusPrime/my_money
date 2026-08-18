@@ -47,12 +47,14 @@ def make_account_row(
     id: int = 1,
     name: str = "Main",
     base_currency_ticker: str = "USD",
+    is_archived: bool = False,
     created_at: datetime | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=id,
         name=name,
         base_currency_ticker=base_currency_ticker,
+        is_archived=is_archived,
         created_at=created_at or datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
 

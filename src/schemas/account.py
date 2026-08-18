@@ -7,6 +7,7 @@ from pydantic import ConfigDict
 class AccountResponseSchema(BaseModel):
     id: int
     name: str
+    is_archived: bool
     base_currency_ticker: str
     created_at: datetime
 

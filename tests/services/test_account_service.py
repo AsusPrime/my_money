@@ -1,12 +1,14 @@
 import pytest
 
 from src.core.exceptions.exceptions import AddRecordError
+from src.core.exceptions.exceptions import ConflictError
 from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
 from src.schemas.account import AccountCreateSchema
 from src.schemas.account import AccountUpdateSchema
 from src.services.account_service import AccountService
 from tests.services.conftest import make_account_row
+from tests.services.conftest import make_balance_row
 from tests.services.conftest import make_currency_row
 
 
@@ -137,21 +139,48 @@ class TestUpdateAccountById:
 
         assert exc_info.value.message == Messages.ACCOUNT_NOT_FOUND
 
-
-class TestDeleteAccountById:
-    async def test_deletes_account_when_found(self, uow):
-        uow.accounts.delete_one.return_value = make_account_row(id=1)
+class TestArchiveAccount:
+    async def test_archives_account_with_no_balances(self, uow):
+        row = make_account_row(id=1, is_archived=False)
+        uow.accounts.find_one_or_none.return_value = row
+        uow.balances.find_all_unarchived_by_account_id.return_value = []
 
         async with uow:
-            await AccountService.delete_account_by_id(uow=uow, account_id=1)
+            await AccountService.archive_account_by_id(uow=uow, account_id=1)
 
-        uow.accounts.delete_one.assert_awaited_once_with(_id=1)
+        assert row.is_archived is True
         assert uow.committed is True
+        uow.balances.find_all_unarchived_by_account_id.assert_awaited_once_with(account_id=1)
+
+    async def test_archives_account_when_all_balances_are_archived(self, uow):
+        row = make_account_row(id=1, is_archived=False)
+        uow.accounts.find_one_or_none.return_value = row
+        uow.balances.find_all_unarchived_by_account_id.return_value = []
+
+        await AccountService.archive_account_by_id(uow=uow, account_id=1)
+
+        assert row.is_archived is True
+
+    async def test_raises_conflict_when_account_has_active_balances(self, uow):
+        row = make_account_row(id=1, is_archived=False)
+        uow.accounts.find_one_or_none.return_value = row
+        uow.balances.find_all_unarchived_by_account_id.return_value = [
+            make_balance_row(id=2, account_id=1, is_archived=False),
+        ]
+
+        with pytest.raises(ConflictError) as exc_info:
+            async with uow:
+                await AccountService.archive_account_by_id(uow=uow, account_id=1)
+
+        assert exc_info.value.message == Messages.ACCOUNT_HAS_ACTIVE_BALANCES
+        assert row.is_archived is False
+        assert uow.rolled_back is True
+        assert uow.committed is False
 
     async def test_raises_not_found_when_missing(self, uow):
-        uow.accounts.delete_one.return_value = None
+        uow.accounts.find_one_or_none.return_value = None
 
         with pytest.raises(NotFoundError) as exc_info:
-            await AccountService.delete_account_by_id(uow=uow, account_id=999)
+            await AccountService.archive_account_by_id(uow=uow, account_id=999)
 
         assert exc_info.value.message == Messages.ACCOUNT_NOT_FOUND

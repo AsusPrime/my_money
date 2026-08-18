@@ -69,8 +69,8 @@ class BalanceService:
         try:
             await balance.archive()
             logger.info(f"Balance {balance_id} archived")
-        except ConflictError as e:
-            logger.warning(f"{e}")
+        except Exception as e:
+            logger.error(f"{e}")
             raise e
 
     @staticmethod

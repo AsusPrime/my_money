@@ -107,10 +107,9 @@ class TestArchiveBalance:
 
         assert exc_info.value.message == Messages.BALANCE_NOT_FOUND
 
-    async def test_archives_when_balance_has_no_ledger_rows(self, uow):
+    async def test_archives_balance(self, uow):
         row = make_balance_row(id=1, is_archived=False)
         uow.balances.find_one_or_none.return_value = row
-        uow.ledgers.get_amounts_by_balance_id.return_value = {}
 
         async with uow:
             await BalanceService.archive_balance(uow=uow, balance_id=1)
@@ -118,44 +117,14 @@ class TestArchiveBalance:
         assert row.is_archived is True
         assert uow.committed is True
 
-    async def test_archives_when_all_currency_sums_are_zero(self, uow):
-        row = make_balance_row(id=1, is_archived=False)
-        uow.balances.find_one_or_none.return_value = row
-        uow.ledgers.get_amounts_by_balance_id.return_value = {
-            "USD": Decimal("0"),
-            "EUR": Decimal("0"),
-        }
-
-        await BalanceService.archive_balance(uow=uow, balance_id=1)
-
-        assert row.is_archived is True
-
-    async def test_raises_conflict_when_balance_has_nonzero_amount(self, uow):
+    async def test_archives_balance_even_with_nonzero_amount(self, uow):
         row = make_balance_row(id=1, is_archived=False)
         uow.balances.find_one_or_none.return_value = row
         uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("150.50")}
 
-        with pytest.raises(ConflictError) as exc_info:
-            async with uow:
-                await BalanceService.archive_balance(uow=uow, balance_id=1)
+        await BalanceService.archive_balance(uow=uow, balance_id=1)
 
-        assert exc_info.value.message == Messages.BALANCE_HAS_NONZERO_AMOUNT
-        assert row.is_archived is False
-        assert uow.rolled_back is True
-        assert uow.committed is False
-
-    async def test_raises_conflict_when_only_one_of_several_currencies_is_nonzero(self, uow):
-        row = make_balance_row(id=1, is_archived=False)
-        uow.balances.find_one_or_none.return_value = row
-        uow.ledgers.get_amounts_by_balance_id.return_value = {
-            "USD": Decimal("0"),
-            "EUR": Decimal("10"),
-        }
-
-        with pytest.raises(ConflictError):
-            await BalanceService.archive_balance(uow=uow, balance_id=1)
-
-        assert row.is_archived is False
+        assert row.is_archived is True
 
 
 class TestGetActiveBalanceById:

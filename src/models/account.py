@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func, text
 from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.orm import mapped_column
 
@@ -25,6 +25,9 @@ class Account(Base):
         autoincrement=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_archived: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false"), nullable=False
+    )
 
     base_currency_ticker: Mapped[str] = mapped_column(
         String(15), ForeignKey("currencies.ticker", ondelete="RESTRICT"), nullable=False

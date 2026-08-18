@@ -13,19 +13,8 @@ class BalanceEntity:
 
     async def get_amounts(self) -> dict[str, Decimal]:
         return await self._uow.ledgers.get_amounts_by_balance_id(balance_id=self._balance.id)
-    
-    async def _is_empty(self) -> bool:
-        amounts = await self.get_amounts()
-        if not amounts:
-            return True
-        if sum(amounts.values()) == 0:
-            return True
-        return False
 
     async def archive(self) -> None:
-        if not await self._is_empty():
-            raise ConflictError(Messages.BALANCE_HAS_NONZERO_AMOUNT)
-
         self._balance.is_archived = True
 
     async def ensure_sufficient_funds(self, currency_ticker: str, amount: Decimal) -> None:

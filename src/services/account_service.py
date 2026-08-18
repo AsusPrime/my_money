@@ -1,8 +1,9 @@
 from loguru import logger
 
-from src.core.exceptions.exceptions import AddRecordError
+from src.core.exceptions.exceptions import AddRecordError, ConflictError
 from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
+from src.entities.account import AccountEntity
 from src.schemas.account import AccountCreateSchema
 from src.schemas.account import AccountListResponseSchema
 from src.schemas.account import AccountResponseSchema
@@ -73,11 +74,24 @@ class AccountService:
         return AccountResponseSchema.model_validate(updated_account)
 
     @staticmethod
-    async def delete_account_by_id(uow: IUnitOfWork, account_id: int) -> None:
-        deleted_account = await uow.accounts.delete_one(_id=account_id)
+    async def archive_account_by_id(uow: IUnitOfWork, account_id: int) -> None:
+        account_to_archive = await uow.accounts.find_one_or_none(id=account_id)
 
-        if deleted_account is None:
+        if not account_to_archive:
             logger.error(f"Account {account_id} not found")
             raise NotFoundError(Messages.ACCOUNT_NOT_FOUND)
+        
+        balances = await uow.balances.find_all_unarchived_by_account_id(account_id=account_id)
 
-        logger.info(f"Account {account_id} deleted")
+        if balances:
+            logger.warning(f"Account {account_id} has unarchived balances")
+            raise ConflictError(Messages.ACCOUNT_HAS_ACTIVE_BALANCES)
+        
+        account = AccountEntity(account=account_to_archive, uow=uow)
+
+        try:
+            await account.archive()
+            logger.info(f"Account {account_id} archived")
+        except Exception as e:
+            logger.error(f"{e}")
+            raise e

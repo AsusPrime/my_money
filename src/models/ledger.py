@@ -19,7 +19,7 @@ class Ledger(Base):
         autoincrement=True,
     )
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    operation_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    operation_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
     operation_type: Mapped[OperationTypeEnum] = mapped_column(
         String(50),
         nullable=False,

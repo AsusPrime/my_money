@@ -66,11 +66,11 @@ async def update_account_api(
     return updated_account
 
 
-@router.delete(
-    "/{account_id}",
+@router.post(
+    "/{account_id}/archive",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_account_api(
+async def archive_account_api(
     account_id: int, uow: UOWDep, account_service: AccountServiceDep
 ):
-    await account_service.delete_account_by_id(uow=uow, account_id=account_id)
+    await account_service.archive_account_by_id(uow=uow, account_id=account_id)

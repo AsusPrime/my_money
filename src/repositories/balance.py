@@ -14,6 +14,15 @@ class BalanceRepository(SQLAlchemyRepository):
         res = await self.session.execute(stmt)
         return res.scalars().all()  # noqa
     
+    async def find_all_unarchived_by_account_id(self, account_id: int):
+        stmt = select(self.model).where(
+            self.model.account_id == account_id,
+            self.model.is_archived == False
+        )
+
+        res = await self.session.execute(stmt)
+        return res.scalars().all()  # noqa
+    
     async def get_name_by_id(self, id: int) -> str | None:  # TODO: write test
         stmt = select(self.model.name).where(self.model.id == id)
 
