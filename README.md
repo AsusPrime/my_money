@@ -44,3 +44,7 @@ docker compose up --build
 pytest
 ```
 
+## Frontend
+
+React + Vite (web / PWA / Tauri macOS app) in [`frontend/`](frontend/README.md).
+
