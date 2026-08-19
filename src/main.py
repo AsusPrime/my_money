@@ -7,6 +7,7 @@ from src.core.exceptions.exception_handlers import register_exception_handlers
 from src.core.middlewares.middlewares import global_error_handler
 from src.routers.account import router as accounts_router
 from src.routers.balance import router as balances_router
+from src.routers.category import router as categories_router
 from src.routers.currency import router as currencies_router
 from src.routers.healthcheck import router as healthcheck_router
 from src.routers.ledger import router as ledger_router
@@ -36,6 +37,7 @@ app.include_router(healthcheck_router)
 app.include_router(accounts_router)
 app.include_router(balances_router)
 app.include_router(currencies_router)
+app.include_router(categories_router)
 app.include_router(ledger_router)
 
 

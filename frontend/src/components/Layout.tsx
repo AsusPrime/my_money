@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 const NAV_ITEMS = [
   { to: '/accounts', label: 'Accounts' },
   { to: '/balances', label: 'Balances' },
+  { to: '/categories', label: 'Categories' },
 ]
 
 function navLinkClass({ isActive }: { isActive: boolean }) {

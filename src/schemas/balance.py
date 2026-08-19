@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from pydantic import BaseModel
 from pydantic import ConfigDict
 
@@ -26,3 +27,7 @@ class BalanceListResponseSchema(BaseModel):
     items: list[BalanceResponseSchema]
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class BalanceAmountsResponseSchema(BaseModel):
+    amounts: dict[str, Decimal]

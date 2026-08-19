@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useAllBalances } from '../api/balances'
+import { useAllBalances, useBalanceAmounts } from '../api/balances'
+import { useCategories } from '../api/categories'
 import { useCurrencies } from '../api/currencies'
 import { useBalanceLedger, useRecordOperation, type OperationPayload } from '../api/ledger'
+import { formatAmount } from '../lib/format'
 
 const OPERATION_TYPES = ['income', 'expense', 'fee', 'transfer', 'trade'] as const
 type OperationType = (typeof OPERATION_TYPES)[number]
@@ -38,10 +40,28 @@ function LedgerHistory({ balanceId }: { balanceId: number }) {
               {entry.note && ` · ${entry.note}`}
             </div>
           </div>
-          <span className={`font-mono font-semibold ${amountColor(entry.amount)}`}>
-            {Number(entry.amount) > 0 ? '+' : ''}
-            {entry.amount} {entry.currency_ticker}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className={`font-mono font-semibold ${amountColor(entry.amount)}`}>
+              {Number(entry.amount) > 0 ? '+' : ''}
+              {formatAmount(entry.amount)} {entry.currency_ticker}
+            </span>
+            <div className="flex gap-2 text-xs font-medium">
+              <button
+                disabled
+                title="Not available yet — backend support coming soon"
+                className="cursor-not-allowed text-text-muted opacity-40"
+              >
+                Edit
+              </button>
+              <button
+                disabled
+                title="Not available yet — backend support coming soon"
+                className="cursor-not-allowed text-negative opacity-40"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </li>
       ))}
     </ul>
@@ -53,6 +73,8 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
   const [amount, setAmount] = useState('')
   const [receivedAmount, setReceivedAmount] = useState('')
   const [currencyTicker, setCurrencyTicker] = useState('')
+  const [receivedCurrencyTicker, setReceivedCurrencyTicker] = useState('')
+  const [categoryId, setCategoryId] = useState('')
   const [counterparty, setCounterparty] = useState('')
   const [note, setNote] = useState('')
   const [toBalanceId, setToBalanceId] = useState('')
@@ -60,8 +82,10 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
   const [spendCurrency, setSpendCurrency] = useState('')
   const [receiveAmount, setReceiveAmount] = useState('')
   const [receiveCurrency, setReceiveCurrency] = useState('')
+  const [executedAt, setExecutedAt] = useState('')
 
   const { data: currencies } = useCurrencies()
+  const { data: categories } = useCategories()
   const { data: allBalances } = useAllBalances()
   const recordOperation = useRecordOperation()
 
@@ -70,11 +94,14 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
   function resetAmountFields() {
     setAmount('')
     setReceivedAmount('')
+    setReceivedCurrencyTicker('')
+    setCategoryId('')
     setCounterparty('')
     setNote('')
     setToBalanceId('')
     setSpendAmount('')
     setReceiveAmount('')
+    setExecutedAt('')
   }
 
   function handleSubmit(e: FormEvent) {
@@ -89,8 +116,10 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
         balance_id: balanceId,
         amount,
         currency_ticker: currencyTicker,
+        category_id: categoryId ? Number(categoryId) : undefined,
         counterparty: counterparty || undefined,
         note: note || undefined,
+        executed_at: executedAt || undefined,
       }
     } else if (operationType === 'transfer') {
       if (!amount || !currencyTicker || !toBalanceId) return
@@ -101,7 +130,9 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
         amount,
         received_amount: receivedAmount || undefined,
         currency_ticker: currencyTicker,
+        received_currency_ticker: receivedCurrencyTicker || undefined,
         note: note || undefined,
+        executed_at: executedAt || undefined,
       }
     } else {
       if (!spendAmount || !spendCurrency || !receiveAmount || !receiveCurrency) return
@@ -113,6 +144,7 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
         receive_amount: receiveAmount,
         receive_currency_ticker: receiveCurrency,
         note: note || undefined,
+        executed_at: executedAt || undefined,
       }
     }
 
@@ -160,6 +192,18 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
             className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
           {currencySelect(currencyTicker, setCurrencyTicker)}
+          <select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+          >
+            <option value="">Category (optional)</option>
+            {categories?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
           <input
             value={counterparty}
             onChange={(e) => setCounterparty(e.target.value)}
@@ -177,13 +221,15 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
             placeholder="Amount sent"
             className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
+          {currencySelect(currencyTicker, setCurrencyTicker)}
+          <span className="self-center text-text-muted">→</span>
           <input
             value={receivedAmount}
             onChange={(e) => setReceivedAmount(e.target.value)}
             placeholder="Amount received (optional)"
             className="w-40 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
-          {currencySelect(currencyTicker, setCurrencyTicker)}
+          {currencySelect(receivedCurrencyTicker, setReceivedCurrencyTicker)}
           <select
             value={toBalanceId}
             onChange={(e) => setToBalanceId(e.target.value)}
@@ -196,6 +242,11 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
               </option>
             ))}
           </select>
+          <p className="w-full text-xs text-text-muted">
+            Leave "received" currency empty for a same-currency transfer. Pick a different
+            currency (e.g. moving UAH into a USDT balance via P2P) — then amount received is
+            required.
+          </p>
         </div>
       )}
 
@@ -226,6 +277,13 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
           placeholder="Note (optional)"
           className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
         />
+        <input
+          type="date"
+          value={executedAt}
+          onChange={(e) => setExecutedAt(e.target.value)}
+          title="Date (defaults to now if left empty)"
+          className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+        />
         <button
           type="submit"
           disabled={recordOperation.isPending}
@@ -241,13 +299,28 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
 export function BalanceDetailPage() {
   const { balanceId } = useParams<{ balanceId: string }>()
   const id = Number(balanceId)
+  const { data: amounts } = useBalanceAmounts(id)
+  const amountEntries = Object.entries(amounts ?? {}).filter(([, value]) => Number(value) !== 0)
 
   return (
     <div className="mx-auto max-w-xl">
       <Link to="/balances" className="mb-4 inline-block text-sm text-text-muted hover:text-text">
         ← Balances
       </Link>
-      <h2 className="mb-4 text-xl font-bold text-text">Balance #{id}</h2>
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-xl font-bold text-text">Balance #{id}</h2>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-sm text-text">
+          {amountEntries.length === 0 ? (
+            <span className="text-text-muted">No activity yet</span>
+          ) : (
+            amountEntries.map(([ticker, value]) => (
+              <span key={ticker}>
+                {formatAmount(value)} <span className="text-text-muted">{ticker}</span>
+              </span>
+            ))
+          )}
+        </div>
+      </div>
       <RecordOperationForm balanceId={id} />
       <LedgerHistory balanceId={id} />
     </div>

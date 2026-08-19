@@ -151,3 +151,32 @@ class TestGetActiveBalanceById:
             await BalanceService.get_active_balance_by_id(uow=uow, balance_id=1)
 
         assert exc_info.value.message == Messages.BALANCE_IS_ARCHIVED
+
+
+class TestGetBalanceAmounts:
+    async def test_returns_amounts_grouped_by_currency(self, uow):
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1)
+        uow.ledgers.get_amounts_by_balance_id.return_value = {
+            "USD": Decimal("150.50"),
+            "EUR": Decimal("10"),
+        }
+
+        result = await BalanceService.get_balance_amounts(uow=uow, balance_id=1)
+
+        assert result.amounts == {"USD": Decimal("150.50"), "EUR": Decimal("10")}
+
+    async def test_returns_empty_dict_when_no_ledger_rows(self, uow):
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1)
+        uow.ledgers.get_amounts_by_balance_id.return_value = {}
+
+        result = await BalanceService.get_balance_amounts(uow=uow, balance_id=1)
+
+        assert result.amounts == {}
+
+    async def test_raises_not_found_when_missing(self, uow):
+        uow.balances.find_one_or_none.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            await BalanceService.get_balance_amounts(uow=uow, balance_id=999)
+
+        assert exc_info.value.message == Messages.BALANCE_NOT_FOUND

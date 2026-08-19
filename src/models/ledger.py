@@ -11,6 +11,7 @@ class Ledger(Base):
     __tablename__ = "ledgers"
 
     currency = relationship("Currency", back_populates="ledgers")
+    category = relationship("Category", back_populates="ledgers")
 
     id: Mapped[int] = mapped_column(
         Integer,
@@ -33,6 +34,11 @@ class Ledger(Base):
         Integer,
         ForeignKey("balances.id", ondelete="RESTRICT"),
         nullable=False,
+    )
+    category_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("categories.id", ondelete="RESTRICT"),
+        nullable=True,
     )
     executed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -18,6 +18,7 @@ class FakeUnitOfWork(IUnitOfWork):
         self.currencies = AsyncMock()
         self.balances = AsyncMock()
         self.ledgers = AsyncMock()
+        self.categories = AsyncMock()
         self.committed = False
         self.rolled_back = False
 
@@ -71,6 +72,16 @@ def make_currency_row(
     )
 
 
+def make_category_row(
+    id: int = 1,
+    name: str = "Salary",
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=id,
+        name=name,
+    )
+
+
 def make_balance_row(
     id: int = 1,
     name: str = "Cash",
@@ -87,24 +98,31 @@ def make_balance_row(
     )
 
 
+_UNSET = object()
+
+
 def make_ledger_row(
     id: int = 1,
-    operation_id: UUID | None = None,
+    operation_id: UUID | None = _UNSET,
     balance_id: int = 1,
     currency_ticker: str = "USD",
     amount: Decimal = Decimal("100"),
     operation_type: OperationTypeEnum = OperationTypeEnum.INCOME,
+    category_id: int | None = None,
     counterparty: str | None = None,
     note: str | None = None,
     executed_at: datetime | None = None,
 ) -> SimpleNamespace:
+    if operation_id is _UNSET:
+        operation_id = uuid4()
     return SimpleNamespace(
         id=id,
-        operation_id=operation_id or uuid4(),
+        operation_id=operation_id,
         balance_id=balance_id,
         currency_ticker=currency_ticker,
         amount=amount,
         operation_type=operation_type,
+        category_id=category_id,
         counterparty=counterparty,
         note=note,
         executed_at=executed_at or datetime(2026, 1, 1, tzinfo=timezone.utc),

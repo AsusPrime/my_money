@@ -4,7 +4,7 @@ from src.core.exceptions.exceptions import AddRecordError, ConflictError, NotFou
 from src.core.messages.messages import Messages
 from src.entities.balance import BalanceEntity
 from src.models import Balance
-from src.schemas.balance import BalanceCreateSchema, BalanceListResponseSchema, BalanceResponseSchema, BalanceUpdateSchema
+from src.schemas.balance import BalanceAmountsResponseSchema, BalanceCreateSchema, BalanceListResponseSchema, BalanceResponseSchema, BalanceUpdateSchema
 from src.utils.uow.unitofwork import IUnitOfWork
 
 
@@ -72,6 +72,21 @@ class BalanceService:
         except Exception as e:
             logger.error(f"{e}")
             raise e
+
+    @staticmethod
+    async def get_balance_amounts(
+        uow: IUnitOfWork, balance_id: int
+    ) -> BalanceAmountsResponseSchema:
+        balance = await uow.balances.find_one_or_none(id=balance_id)
+
+        if balance is None:
+            logger.warning(f"Balance {balance_id} not found")
+            raise NotFoundError(Messages.BALANCE_NOT_FOUND)
+
+        balance_entity = BalanceEntity(balance=balance, uow=uow)
+        amounts = await balance_entity.get_amounts()
+
+        return BalanceAmountsResponseSchema(amounts=amounts)
 
     @staticmethod
     async def get_active_balance_by_id(uow: IUnitOfWork, balance_id: int) -> Balance:

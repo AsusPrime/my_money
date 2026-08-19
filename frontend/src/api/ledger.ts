@@ -10,6 +10,7 @@ export interface LedgerEntry {
   currency_ticker: string
   amount: string
   operation_type: string
+  category_id: number | null
   counterparty: string | null
   note: string | null
   executed_at: string
@@ -26,8 +27,10 @@ export interface SingleLegPayload {
   balance_id: number
   amount: string
   currency_ticker: string
+  category_id?: number
   counterparty?: string
   note?: string
+  executed_at?: string
 }
 
 export interface TransferPayload extends FeeLegFields {
@@ -37,6 +40,8 @@ export interface TransferPayload extends FeeLegFields {
   amount: string
   received_amount?: string
   currency_ticker: string
+  received_currency_ticker?: string
+  executed_at?: string
 }
 
 export interface TradePayload extends FeeLegFields {
@@ -46,6 +51,7 @@ export interface TradePayload extends FeeLegFields {
   spend_currency_ticker: string
   receive_amount: string
   receive_currency_ticker: string
+  executed_at?: string
 }
 
 export type OperationPayload = SingleLegPayload | TransferPayload | TradePayload

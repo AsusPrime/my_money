@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from fastapi import status
 from loguru import logger
 
+from src.schemas.balance import BalanceAmountsResponseSchema
 from src.schemas.balance import BalanceCreateSchema
 from src.schemas.balance import BalanceListResponseSchema
 from src.schemas.balance import BalanceResponseSchema
@@ -52,6 +53,17 @@ async def get_balance_ledger_api(
     return await ledger_service.get_operations_by_balance_id(
         uow=uow, balance_id=balance_id
     )
+
+
+@router.get(
+    "/{balance_id}/amounts",
+    response_model=BalanceAmountsResponseSchema,
+    status_code=status.HTTP_200_OK,
+)
+async def get_balance_amounts_api(
+    balance_id: int, uow: UOWDep, balance_service: BalanceServiceDep
+):
+    return await balance_service.get_balance_amounts(uow=uow, balance_id=balance_id)
 
 
 @router.post(

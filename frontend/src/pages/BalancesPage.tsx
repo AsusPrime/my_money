@@ -1,7 +1,42 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAccounts } from '../api/accounts'
-import { useArchiveBalance, useBalances, useCreateBalance } from '../api/balances'
+import {
+  useArchiveBalance,
+  useBalanceAmounts,
+  useBalances,
+  useCreateBalance,
+  type Balance,
+} from '../api/balances'
+import { formatAmount } from '../lib/format'
+
+function formatAmounts(amounts: Record<string, string> | undefined) {
+  if (!amounts) return null
+  const entries = Object.entries(amounts).filter(([, value]) => Number(value) !== 0)
+  if (entries.length === 0) return null
+  return entries.map(([ticker, value]) => `${formatAmount(value)} ${ticker}`).join(' · ')
+}
+
+function BalanceRow({ balance }: { balance: Balance }) {
+  const { data: amounts } = useBalanceAmounts(balance.id)
+  const archiveBalance = useArchiveBalance()
+  const summary = formatAmounts(amounts)
+
+  return (
+    <li className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3">
+      <Link to={`/balances/${balance.id}`} className="flex-1 text-text hover:text-accent">
+        <div>{balance.name}</div>
+        <div className="text-xs text-text-muted">{summary ?? 'No activity yet'}</div>
+      </Link>
+      <button
+        onClick={() => archiveBalance.mutate(balance.id)}
+        className="text-sm font-medium text-negative hover:text-negative/80"
+      >
+        Archive
+      </button>
+    </li>
+  )
+}
 
 function CreateBalanceForm({ accountId }: { accountId: number }) {
   const [name, setName] = useState('')
@@ -42,7 +77,6 @@ export function BalancesPage() {
   const selectedAccountId = accountId ?? activeAccounts?.[0]?.id ?? null
   const { data: balances, isLoading } = useBalances(selectedAccountId)
   const activeBalances = balances?.filter((balance) => !balance.is_archived)
-  const archiveBalance = useArchiveBalance()
 
   if (activeAccounts && activeAccounts.length === 0) {
     return (
@@ -77,20 +111,7 @@ export function BalancesPage() {
 
       <ul className="flex flex-col gap-2">
         {activeBalances?.map((balance) => (
-          <li
-            key={balance.id}
-            className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3"
-          >
-            <Link to={`/balances/${balance.id}`} className="flex-1 text-text hover:text-accent">
-              {balance.name}
-            </Link>
-            <button
-              onClick={() => archiveBalance.mutate(balance.id)}
-              className="text-sm font-medium text-negative hover:text-negative/80"
-            >
-              Archive
-            </button>
-          </li>
+          <BalanceRow key={balance.id} balance={balance} />
         ))}
       </ul>
     </div>

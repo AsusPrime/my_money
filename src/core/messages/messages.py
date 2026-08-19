@@ -19,6 +19,14 @@ class Messages(str, Enum):
     BALANCE_IS_ARCHIVED = "Balance is archived and cannot be used for new operations"
     BALANCE_INSUFFICIENT_FUNDS = "Balance does not have enough funds in this currency for this operation"
     OPERATION_TYPE_NOT_FOUND = "Operation type not found"
+    TRANSFER_RECEIVED_AMOUNT_REQUIRED = (
+        "received_amount must be given explicitly when received_currency_ticker "
+        "differs from currency_ticker — amounts don't convert 1:1 across currencies"
+    )
+    CATEGORY_NOT_FOUND = "Category not found"
+    ERROR_FILLED_TO_ADD_NEW_CATEGORY = "Error filled to add new category"
+    CATEGORY_IN_USE = "Category is still in use and cannot be deleted"
+    LEDGER_ENTRY_NOT_FOUND = "Ledger entry not found"
 
     def __str__(self):
         return self.value

@@ -3,6 +3,7 @@ import { Layout } from './components/Layout'
 import { AccountsPage } from './pages/AccountsPage'
 import { BalanceDetailPage } from './pages/BalanceDetailPage'
 import { BalancesPage } from './pages/BalancesPage'
+import { CategoriesPage } from './pages/CategoriesPage'
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/balances" element={<BalancesPage />} />
         <Route path="/balances/:balanceId" element={<BalanceDetailPage />} />
+        <Route path="/categories" element={<CategoriesPage />} />
       </Route>
     </Routes>
   )

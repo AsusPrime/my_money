@@ -45,6 +45,13 @@ async function archiveBalance(balanceId: number): Promise<void> {
   await apiClient.post(`/balances/${balanceId}/archive`)
 }
 
+async function fetchBalanceAmounts(balanceId: number): Promise<Record<string, string>> {
+  const { data } = await apiClient.get<{ amounts: Record<string, string> }>(
+    `/balances/${balanceId}/amounts`,
+  )
+  return data.amounts
+}
+
 export function useBalances(accountId: number | null) {
   return useQuery({
     queryKey: [...BALANCES_KEY, accountId],
@@ -55,6 +62,13 @@ export function useBalances(accountId: number | null) {
 
 export function useAllBalances() {
   return useQuery({ queryKey: ALL_BALANCES_KEY, queryFn: fetchAllBalances })
+}
+
+export function useBalanceAmounts(balanceId: number) {
+  return useQuery({
+    queryKey: [...BALANCES_KEY, balanceId, 'amounts'],
+    queryFn: () => fetchBalanceAmounts(balanceId),
+  })
 }
 
 export function useCreateBalance() {
