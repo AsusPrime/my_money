@@ -2,6 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 
 import httpx
+import pycountry
 
 from src.common.constants import RATE_CLIENT_HTTP_TIMEOUT_SECONDS
 
@@ -26,6 +27,9 @@ class FiatRateClient:
             currency_ticker=currency_ticker,
             base_currency_ticker=base_currency_ticker,
         )
+
+    async def ticker_exists(self, *, currency_ticker: str) -> bool:
+        return pycountry.currencies.get(alpha_3=currency_ticker.upper()) is not None
 
     async def _fetch(
         self, *, path: str, currency_ticker: str, base_currency_ticker: str

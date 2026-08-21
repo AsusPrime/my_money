@@ -43,6 +43,13 @@ class CryptoRateClient:
         rate = response.json()["market_data"]["current_price"][vs_currency]
         return Decimal(str(rate))
 
+    async def ticker_exists(self, *, currency_ticker: str) -> bool:
+        try:
+            await self._resolve_id(currency_ticker)
+        except NotFoundError:
+            return False
+        return True
+
     async def _resolve_id(self, currency_ticker: str) -> str:
         ticker = currency_ticker.lower()
         if ticker in self._id_cache:

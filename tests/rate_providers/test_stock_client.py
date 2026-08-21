@@ -25,3 +25,11 @@ class TestStockRateClientStub:
                 base_currency_ticker="USD",
                 rate_at=datetime(2026, 8, 15, tzinfo=timezone.utc),
             )
+
+
+class TestStockRateClientTickerExists:
+    """Nothing to validate against yet — fails closed (rejects) rather than
+    trusting an unverifiable ticker, until Twelve Data is wired up."""
+
+    async def test_always_returns_false(self):
+        assert await StockRateClient().ticker_exists(currency_ticker="AAPL") is False

@@ -1,11 +1,15 @@
+from unittest.mock import AsyncMock
+
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from src.core.exceptions.exceptions import AddRecordError
 from src.core.exceptions.exceptions import AlreadyExistsError
+from src.core.exceptions.exceptions import BadRequestError
 from src.core.exceptions.exceptions import ConflictError
 from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
+from src.enums.enums import CurrencyTypeEnum
 from src.schemas.currency import CurrencyCreateSchema
 from src.schemas.currency import CurrencyUpdateSchema
 from src.services.currency_service import CurrencyService
@@ -96,6 +100,34 @@ class TestCreateCurrency:
             )
 
         assert exc_info.value.message == Messages.ERROR_FILLED_TO_ADD_NEW_CURRENCY
+
+    async def test_raises_bad_request_when_ticker_does_not_exist(self, uow):
+        uow.currencies.find_one_or_none.return_value = None
+
+        with pytest.raises(BadRequestError) as exc_info:
+            await CurrencyService.create_currency(
+                uow=uow,
+                currency_data=CurrencyCreateSchema(ticker="ZZZ", currency_type="fiat"),
+            )
+
+        assert exc_info.value.message == Messages.CURRENCY_TICKER_NOT_FOUND
+        uow.currencies.add_one.assert_not_called()
+
+    async def test_checks_ticker_exists_before_creating(self, uow):
+        uow.currencies.find_one_or_none.return_value = None
+        uow.currencies.add_one.return_value = make_currency_row(ticker="EUR", name="Euro")
+        exchange_rate_service = AsyncMock()
+        exchange_rate_service.ticker_exists.return_value = True
+
+        await CurrencyService.create_currency(
+            uow=uow,
+            currency_data=CurrencyCreateSchema(ticker="EUR", name="Euro", currency_type="fiat"),
+            exchange_rate_service=exchange_rate_service,
+        )
+
+        exchange_rate_service.ticker_exists.assert_awaited_once_with(
+            currency_ticker="EUR", currency_type=CurrencyTypeEnum.FIAT
+        )
 
 
 class TestUpdateCurrencyByTicker:

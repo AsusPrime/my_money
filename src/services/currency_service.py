@@ -1,7 +1,7 @@
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
 
-from src.core.exceptions.exceptions import AddRecordError, ConflictError
+from src.core.exceptions.exceptions import AddRecordError, BadRequestError, ConflictError
 from src.core.exceptions.exceptions import AlreadyExistsError
 from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
@@ -9,6 +9,7 @@ from src.schemas.currency import CurrencyCreateSchema
 from src.schemas.currency import CurrencyListResponseSchema
 from src.schemas.currency import CurrencyResponseSchema
 from src.schemas.currency import CurrencyUpdateSchema
+from src.services.exchange_rate_service import ExchangeRateService
 from src.utils.uow.unitofwork import IUnitOfWork
 
 
@@ -36,12 +37,22 @@ class CurrencyService:
 
     @staticmethod
     async def create_currency(
-        uow: IUnitOfWork, currency_data: CurrencyCreateSchema
+        uow: IUnitOfWork,
+        currency_data: CurrencyCreateSchema,
+        exchange_rate_service: ExchangeRateService = ExchangeRateService(),
     ) -> CurrencyResponseSchema:
         existing_currency = await uow.currencies.find_one_or_none(ticker=currency_data.ticker)
         if existing_currency:
             logger.warning(f"Currency {currency_data.ticker} already exist")
             raise AlreadyExistsError(Messages.CURRENCY_ALREADY_EXISTS)
+
+        ticker_exists = await exchange_rate_service.ticker_exists(
+            currency_ticker=currency_data.ticker, currency_type=currency_data.currency_type
+        )
+        if not ticker_exists:
+            logger.warning(f"Ticker {currency_data.ticker} does not exist")
+            raise BadRequestError(Messages.CURRENCY_TICKER_NOT_FOUND)
+
         new_currency = await uow.currencies.add_one(data=currency_data.model_dump())
 
         if new_currency is None:

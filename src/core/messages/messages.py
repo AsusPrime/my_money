@@ -28,6 +28,9 @@ class Messages(str, Enum):
     CATEGORY_IN_USE = "Category is still in use and cannot be deleted"
     LEDGER_ENTRY_NOT_FOUND = "Ledger entry not found"
     RATE_CLIENT_NOT_FOUND = "No rate client configured for this currency type"
+    CURRENCY_TICKER_NOT_FOUND = (
+        "This ticker does not exist for the given currency type — check the spelling"
+    )
     COINGECKO_ID_NOT_FOUND = (
         "No CoinGecko id mapping for this crypto ticker — add it to the ticker-to-id mapping"
     )

@@ -15,3 +15,7 @@ class StockRateClient:
         # TODO: GET https://api.twelvedata.com/time_series
         #       ?symbol={currency_ticker}&start_date=...&end_date=...&apikey=...
         raise NotImplementedError
+
+    async def ticker_exists(self, *, currency_ticker: str) -> bool:
+        # TODO
+        return False

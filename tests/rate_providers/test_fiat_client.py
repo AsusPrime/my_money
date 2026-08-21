@@ -47,3 +47,12 @@ class TestFiatRateClient:
                 await FiatRateClient().get_current(
                     currency_ticker="EUR", base_currency_ticker="USD"
                 )
+
+    async def test_ticker_exists_true_for_known_iso_code(self):
+        assert await FiatRateClient().ticker_exists(currency_ticker="EUR") is True
+
+    async def test_ticker_exists_is_case_insensitive(self):
+        assert await FiatRateClient().ticker_exists(currency_ticker="eur") is True
+
+    async def test_ticker_exists_false_for_unknown_code(self):
+        assert await FiatRateClient().ticker_exists(currency_ticker="ZZZ") is False

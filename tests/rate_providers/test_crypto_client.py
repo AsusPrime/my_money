@@ -51,6 +51,16 @@ class TestCryptoRateClient:
                     currency_ticker="DOGE", base_currency_ticker="USD"
                 )
 
+    async def test_ticker_exists_true_when_coin_resolves(self):
+        client = mock_http_client([{"id": "bitcoin", "symbol": "btc"}])
+        with patch("httpx.AsyncClient", return_value=client):
+            assert await CryptoRateClient().ticker_exists(currency_ticker="BTC") is True
+
+    async def test_ticker_exists_false_when_no_coin_matches(self):
+        client = mock_http_client([])
+        with patch("httpx.AsyncClient", return_value=client):
+            assert await CryptoRateClient().ticker_exists(currency_ticker="ZZZ") is False
+
 
 class TestCryptoRateClientResolveId:
     async def test_resolves_ticker_via_coingecko_markets(self):
