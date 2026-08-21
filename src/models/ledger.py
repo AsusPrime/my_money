@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
-from sqlalchemy import DECIMAL, DateTime, ForeignKey, Integer, String, Uuid, func
+from sqlalchemy import DECIMAL, DateTime, ForeignKey, Index, Integer, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.enums.enums import OperationTypeEnum
 from src.models import Base
@@ -9,6 +9,9 @@ from src.models import Base
 
 class Ledger(Base):
     __tablename__ = "ledgers"
+    __table_args__ = (
+        Index("ix_ledgers_balance_id_currency_ticker", "balance_id", "currency_ticker"),
+    )
 
     currency = relationship("Currency", back_populates="ledgers")
     category = relationship("Category", back_populates="ledgers")
