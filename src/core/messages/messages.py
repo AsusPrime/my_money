@@ -27,6 +27,10 @@ class Messages(str, Enum):
     ERROR_FILLED_TO_ADD_NEW_CATEGORY = "Error filled to add new category"
     CATEGORY_IN_USE = "Category is still in use and cannot be deleted"
     LEDGER_ENTRY_NOT_FOUND = "Ledger entry not found"
+    RATE_CLIENT_NOT_FOUND = "No rate client configured for this currency type"
+    COINGECKO_ID_NOT_FOUND = (
+        "No CoinGecko id mapping for this crypto ticker — add it to the ticker-to-id mapping"
+    )
 
     def __str__(self):
         return self.value

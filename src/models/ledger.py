@@ -45,3 +45,4 @@ class Ledger(Base):
         server_default=func.now(),
         nullable=False,
     )
+    base_currency_rate: Mapped[Decimal | None] = mapped_column(DECIMAL(20, 8), nullable=True)

@@ -19,6 +19,7 @@ class LedgerResponseSchema(BaseModel):
     counterparty: str | None
     note: str | None
     executed_at: datetime
+    base_currency_rate: Decimal | None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -34,6 +35,7 @@ class LedgerUpdateSchema(BaseModel):
     category_id: int | None = None
     counterparty: str | None = None
     note: str | None = None
+    base_currency_rate: Decimal | None = None
 
 
 class _FeeLegMixin(BaseModel):
@@ -52,6 +54,7 @@ class RecordSingleLegOperationPayload(BaseModel):
     counterparty: str | None = None
     note: str | None = None
     executed_at: datetime | None = None
+    base_currency_rate: Decimal | None = None
 
 
 class RecordTransferPayload(_FeeLegMixin):
@@ -71,6 +74,7 @@ class RecordTransferPayload(_FeeLegMixin):
     currency_ticker: str
     received_currency_ticker: str | None = None
     executed_at: datetime | None = None
+    base_currency_rate: Decimal | None = None
 
 
 class RecordTradePayload(_FeeLegMixin):
@@ -81,3 +85,4 @@ class RecordTradePayload(_FeeLegMixin):
     receive_amount: Decimal
     receive_currency_ticker: str
     executed_at: datetime | None = None
+    base_currency_rate: Decimal | None = None

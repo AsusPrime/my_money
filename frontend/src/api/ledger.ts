@@ -14,6 +14,7 @@ export interface LedgerEntry {
   counterparty: string | null
   note: string | null
   executed_at: string
+  base_currency_rate: string | null
 }
 
 interface FeeLegFields {
@@ -31,6 +32,7 @@ export interface SingleLegPayload {
   counterparty?: string
   note?: string
   executed_at?: string
+  base_currency_rate?: string
 }
 
 export interface TransferPayload extends FeeLegFields {
@@ -42,6 +44,7 @@ export interface TransferPayload extends FeeLegFields {
   currency_ticker: string
   received_currency_ticker?: string
   executed_at?: string
+  base_currency_rate?: string
 }
 
 export interface TradePayload extends FeeLegFields {
@@ -52,6 +55,7 @@ export interface TradePayload extends FeeLegFields {
   receive_amount: string
   receive_currency_ticker: string
   executed_at?: string
+  base_currency_rate?: string
 }
 
 export type OperationPayload = SingleLegPayload | TransferPayload | TradePayload

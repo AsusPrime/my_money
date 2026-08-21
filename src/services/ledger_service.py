@@ -14,8 +14,10 @@ from src.schemas.ledger import (
     RecordTradePayload,
     RecordTransferPayload,
 )
+from src.services.account_service import AccountService
 from src.services.balance_service import BalanceService
 from src.services.currency_service import CurrencyService
+from src.services.exchange_rate_service import ExchangeRateService
 from src.utils.uow.unitofwork import IUnitOfWork
 
 
@@ -53,10 +55,13 @@ class LedgerService:
         payload: RecordSingleLegOperationPayload,
         balance_service: BalanceService = BalanceService(),
         currency_service: CurrencyService = CurrencyService(),
+        account_service: AccountService = AccountService(),
+        exchange_rate_service: ExchangeRateService = ExchangeRateService(),
+        resolve_base_currency_rate: bool = True,
     ) -> LedgerResponseSchema:
         # check if currency exist
         # if not, it will raise an error
-        await currency_service.get_currency_by_ticker(uow=uow, ticker=payload.currency_ticker)
+        currency = await currency_service.get_currency_by_ticker(uow=uow, ticker=payload.currency_ticker)
         # check if balance exist and is not archived
         # if not, it will raise an error
         balance = await balance_service.get_active_balance_by_id(uow=uow, balance_id=payload.balance_id)
@@ -76,6 +81,24 @@ class LedgerService:
         # executed_at defaults to now when the caller doesn't specify one
         if payload.executed_at is None:
             payload.executed_at = datetime.now(timezone.utc)
+
+        # a standalone single-leg op has no paired leg to derive a rate from, so
+        # auto-fetch it — unless the caller already gave one, or the currency
+        # already matches the account's base currency (no conversion needed).
+        # transfer/trade legs pass resolve_base_currency_rate=False and skip this
+        # entirely, since their cost basis is already derivable from the paired
+        # leg amounts.
+        if resolve_base_currency_rate and payload.base_currency_rate is None:
+            account = await account_service.get_account_by_id(
+                uow=uow, account_id=balance.account_id
+            )
+            if payload.currency_ticker != account.base_currency_ticker:
+                payload.base_currency_rate = await exchange_rate_service.get_historical_rate(
+                    currency_ticker=payload.currency_ticker,
+                    base_currency_ticker=account.base_currency_ticker,
+                    currency_type=currency.currency_type,
+                    rate_at=payload.executed_at,
+                )
 
         new_operation = await uow.ledgers.add_one(data=payload.model_dump())
         return LedgerResponseSchema.model_validate(new_operation)
@@ -113,9 +136,11 @@ class LedgerService:
                 counterparty=to_balance_name,
                 operation_id=operation_id,
                 executed_at=executed_at,
+                base_currency_rate=payload.base_currency_rate,
             ),
             balance_service=balance_service,
-            currency_service=currency_service
+            currency_service=currency_service,
+            resolve_base_currency_rate=False,
         )
         response.items.append(from_ledger)
         # creating the inflow leg — money arriving at to_balance_id
@@ -130,9 +155,11 @@ class LedgerService:
                 counterparty=from_balance_name,
                 operation_id=operation_id,
                 executed_at=executed_at,
+                base_currency_rate=payload.base_currency_rate,
             ),
             balance_service=balance_service,
-            currency_service=currency_service
+            currency_service=currency_service,
+            resolve_base_currency_rate=False,
         )
         response.items.append(to_ledger)
 
@@ -147,9 +174,11 @@ class LedgerService:
                     currency_ticker=payload.fee_currency_ticker,
                     operation_id=operation_id,
                     executed_at=executed_at,
+                    base_currency_rate=payload.base_currency_rate,
                 ),
                 balance_service=balance_service,
-                currency_service=currency_service
+                currency_service=currency_service,
+                resolve_base_currency_rate=False,
             )
             response.items.append(fee_ledger)
 
@@ -220,9 +249,11 @@ class LedgerService:
                 counterparty=balance_name,
                 operation_id=operation_id,
                 executed_at=executed_at,
+                base_currency_rate=payload.base_currency_rate,
             ),
             balance_service=balance_service,
-            currency_service=currency_service
+            currency_service=currency_service,
+            resolve_base_currency_rate=False,
         )
         response.items.append(spend_ledger)
         # creating the receive leg
@@ -236,9 +267,11 @@ class LedgerService:
                 counterparty=balance_name,
                 operation_id=operation_id,
                 executed_at=executed_at,
+                base_currency_rate=payload.base_currency_rate,
             ),
             balance_service=balance_service,
-            currency_service=currency_service
+            currency_service=currency_service,
+            resolve_base_currency_rate=False,
         )
         response.items.append(receive_ledger)
 
@@ -253,9 +286,11 @@ class LedgerService:
                     currency_ticker=payload.fee_currency_ticker,
                     operation_id=operation_id,
                     executed_at=executed_at,
+                    base_currency_rate=payload.base_currency_rate,
                 ),
                 balance_service=balance_service,
-                currency_service=currency_service
+                currency_service=currency_service,
+                resolve_base_currency_rate=False,
             )
             response.items.append(fee_ledger)
 

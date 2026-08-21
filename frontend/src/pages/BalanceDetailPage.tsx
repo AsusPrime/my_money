@@ -82,7 +82,9 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
   const [spendCurrency, setSpendCurrency] = useState('')
   const [receiveAmount, setReceiveAmount] = useState('')
   const [receiveCurrency, setReceiveCurrency] = useState('')
-  const [executedAt, setExecutedAt] = useState('')
+  const [executedAtDate, setExecutedAtDate] = useState('')
+  const [executedAtTime, setExecutedAtTime] = useState('')
+  const [baseCurrencyRate, setBaseCurrencyRate] = useState('')
 
   const { data: currencies } = useCurrencies()
   const { data: categories } = useCategories()
@@ -101,13 +103,20 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
     setToBalanceId('')
     setSpendAmount('')
     setReceiveAmount('')
-    setExecutedAt('')
+    setExecutedAtDate('')
+    setExecutedAtTime('')
+    setBaseCurrencyRate('')
   }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
 
     let payload: OperationPayload
+    // combine the separate date/time inputs (both naive, browser-local) into a
+    // real UTC instant, matching what the backend defaults to
+    const executedAtIso = executedAtDate
+      ? new Date(`${executedAtDate}T${executedAtTime || '00:00'}`).toISOString()
+      : undefined
 
     if (operationType === 'income' || operationType === 'expense' || operationType === 'fee') {
       if (!amount || !currencyTicker) return
@@ -119,7 +128,8 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
         category_id: categoryId ? Number(categoryId) : undefined,
         counterparty: counterparty || undefined,
         note: note || undefined,
-        executed_at: executedAt || undefined,
+        executed_at: executedAtIso,
+        base_currency_rate: baseCurrencyRate || undefined,
       }
     } else if (operationType === 'transfer') {
       if (!amount || !currencyTicker || !toBalanceId) return
@@ -132,7 +142,8 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
         currency_ticker: currencyTicker,
         received_currency_ticker: receivedCurrencyTicker || undefined,
         note: note || undefined,
-        executed_at: executedAt || undefined,
+        executed_at: executedAtIso,
+        base_currency_rate: baseCurrencyRate || undefined,
       }
     } else {
       if (!spendAmount || !spendCurrency || !receiveAmount || !receiveCurrency) return
@@ -144,7 +155,8 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
         receive_amount: receiveAmount,
         receive_currency_ticker: receiveCurrency,
         note: note || undefined,
-        executed_at: executedAt || undefined,
+        executed_at: executedAtIso,
+        base_currency_rate: baseCurrencyRate || undefined,
       }
     }
 
@@ -279,10 +291,24 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
         />
         <input
           type="date"
-          value={executedAt}
-          onChange={(e) => setExecutedAt(e.target.value)}
+          value={executedAtDate}
+          onChange={(e) => setExecutedAtDate(e.target.value)}
           title="Date (defaults to now if left empty)"
           className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+        />
+        <input
+          type="time"
+          value={executedAtTime}
+          onChange={(e) => setExecutedAtTime(e.target.value)}
+          title="Time (defaults to 00:00 if left empty; ignored without a date)"
+          className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+        />
+        <input
+          value={baseCurrencyRate}
+          onChange={(e) => setBaseCurrencyRate(e.target.value)}
+          placeholder="Rate (optional)"
+          title="Rate to base currency at execution time — auto-filled for foreign-currency income/expense/fee if left empty; set it to override"
+          className="w-28 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
         />
         <button
           type="submit"

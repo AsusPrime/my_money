@@ -17,6 +17,7 @@ from src.schemas.ledger import RecordSingleLegOperationPayload
 from src.schemas.ledger import RecordTradePayload
 from src.schemas.ledger import RecordTransferPayload
 from src.services.ledger_service import LedgerService
+from tests.services.conftest import make_account_row
 from tests.services.conftest import make_balance_row
 from tests.services.conftest import make_currency_row
 from tests.services.conftest import make_ledger_row
@@ -40,6 +41,7 @@ class TestRecordSingleLegOperation:
             id=1, is_archived=False
         )
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.accounts.find_one_or_none.return_value = make_account_row()
         uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("10000")}
         uow.ledgers.add_one.return_value = make_ledger_row(
             balance_id=1,
@@ -131,6 +133,7 @@ class TestRecordSingleLegOperationSignNormalization:
             id=1, is_archived=False
         )
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.accounts.find_one_or_none.return_value = make_account_row()
         uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("10000")}
         uow.ledgers.add_one.return_value = make_ledger_row(
             balance_id=1,
@@ -157,6 +160,7 @@ class TestRecordSingleLegOperationSignNormalization:
             id=1, is_archived=False
         )
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.accounts.find_one_or_none.return_value = make_account_row()
         uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("10000")}
         uow.ledgers.add_one.return_value = make_ledger_row(
             balance_id=1,
@@ -183,6 +187,7 @@ class TestRecordSingleLegOperationSignNormalization:
             id=1, is_archived=False
         )
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.accounts.find_one_or_none.return_value = make_account_row()
         uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("10000")}
         uow.ledgers.add_one.return_value = make_ledger_row(
             balance_id=1,
@@ -209,6 +214,7 @@ class TestRecordSingleLegOperationSignNormalization:
             id=1, is_archived=False
         )
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.accounts.find_one_or_none.return_value = make_account_row()
         uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("10000")}
         uow.ledgers.add_one.return_value = make_ledger_row(
             balance_id=1,
@@ -235,6 +241,7 @@ class TestRecordSingleLegOperationSignNormalization:
             id=1, is_archived=False
         )
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.accounts.find_one_or_none.return_value = make_account_row()
         uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("10000")}
         uow.ledgers.add_one.return_value = make_ledger_row(
             balance_id=1,
@@ -299,6 +306,7 @@ class TestRecordSingleLegOperationSufficientFunds:
     async def test_allows_expense_that_exactly_zeroes_the_balance(self, uow):
         uow.balances.find_one_or_none.return_value = make_balance_row(id=1, is_archived=False)
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.accounts.find_one_or_none.return_value = make_account_row()
         uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("100")}
         uow.ledgers.add_one.return_value = make_ledger_row(balance_id=1, amount=Decimal("-100"))
 
@@ -317,6 +325,7 @@ class TestRecordSingleLegOperationSufficientFunds:
     async def test_income_from_a_zero_balance_is_allowed(self, uow):
         uow.balances.find_one_or_none.return_value = make_balance_row(id=1, is_archived=False)
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.accounts.find_one_or_none.return_value = make_account_row()
         uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("0")}
         uow.ledgers.add_one.return_value = make_ledger_row(balance_id=1, amount=Decimal("500"))
 
@@ -338,6 +347,7 @@ class TestRecordSingleLegOperationExecutedAt:
         custom_date = datetime(2026, 1, 15, tzinfo=timezone.utc)
         uow.balances.find_one_or_none.return_value = make_balance_row(id=1, is_archived=False)
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.accounts.find_one_or_none.return_value = make_account_row()
         uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("10000")}
         uow.ledgers.add_one.return_value = make_ledger_row(
             balance_id=1, amount=Decimal("500"), executed_at=custom_date
@@ -362,6 +372,7 @@ class TestRecordSingleLegOperationExecutedAt:
         # so the service must resolve a concrete value itself
         uow.balances.find_one_or_none.return_value = make_balance_row(id=1, is_archived=False)
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.accounts.find_one_or_none.return_value = make_account_row()
         uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("10000")}
         uow.ledgers.add_one.return_value = make_ledger_row(balance_id=1, amount=Decimal("500"))
 
@@ -379,6 +390,161 @@ class TestRecordSingleLegOperationExecutedAt:
 
         _, kwargs = uow.ledgers.add_one.await_args
         assert before <= kwargs["data"]["executed_at"] <= after
+
+
+class TestRecordSingleLegOperationBaseCurrencyRate:
+    async def test_passes_explicit_base_currency_rate_through_to_insert(self, uow):
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1, is_archived=False)
+        uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("10000")}
+        uow.ledgers.add_one.return_value = make_ledger_row(
+            balance_id=1, amount=Decimal("500"), base_currency_rate=Decimal("39.2")
+        )
+
+        await LedgerService._record_single_leg_operation(
+            uow=uow,
+            payload=RecordSingleLegOperationPayload(
+                operation_type=OperationTypeEnum.INCOME,
+                balance_id=1,
+                amount=Decimal("500"),
+                currency_ticker="USD",
+                base_currency_rate=Decimal("39.2"),
+            ),
+        )
+
+        _, kwargs = uow.ledgers.add_one.await_args
+        assert kwargs["data"]["base_currency_rate"] == Decimal("39.2")
+
+    async def test_defaults_to_none_when_not_given(self, uow):
+        # no rate to auto-derive it from — must stay None, never guessed
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1, is_archived=False)
+        uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.accounts.find_one_or_none.return_value = make_account_row()
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("10000")}
+        uow.ledgers.add_one.return_value = make_ledger_row(balance_id=1, amount=Decimal("500"))
+
+        await LedgerService._record_single_leg_operation(
+            uow=uow,
+            payload=RecordSingleLegOperationPayload(
+                operation_type=OperationTypeEnum.INCOME,
+                balance_id=1,
+                amount=Decimal("500"),
+                currency_ticker="USD",
+            ),
+        )
+
+        _, kwargs = uow.ledgers.add_one.await_args
+        assert kwargs["data"]["base_currency_rate"] is None
+
+
+class TestRecordSingleLegOperationAutoResolveBaseCurrencyRate:
+    """A standalone single-leg operation in a currency other than the account's
+    base currency has no paired leg to derive a rate from, so the service asks
+    ExchangeRateService for a historical one. Transfer/trade legs call with
+    resolve_base_currency_rate=False and skip this entirely, since their cost
+    basis is already derivable from the paired leg amounts."""
+
+    async def test_fetches_rate_when_currency_differs_from_account_base_currency(self, uow):
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1, account_id=1, is_archived=False)
+        uow.accounts.find_one_or_none.return_value = make_account_row(id=1, base_currency_ticker="USD")
+        uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="EUR")
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"EUR": Decimal("0")}
+        uow.ledgers.add_one.return_value = make_ledger_row(
+            balance_id=1, currency_ticker="EUR", amount=Decimal("100"), base_currency_rate=Decimal("1.08")
+        )
+        exchange_rate_service = AsyncMock()
+        exchange_rate_service.get_historical_rate.return_value = Decimal("1.08")
+
+        await LedgerService._record_single_leg_operation(
+            uow=uow,
+            payload=RecordSingleLegOperationPayload(
+                operation_type=OperationTypeEnum.INCOME,
+                balance_id=1,
+                amount=Decimal("100"),
+                currency_ticker="EUR",
+            ),
+            exchange_rate_service=exchange_rate_service,
+        )
+
+        exchange_rate_service.get_historical_rate.assert_awaited_once()
+        _, rate_kwargs = exchange_rate_service.get_historical_rate.await_args
+        assert rate_kwargs["currency_ticker"] == "EUR"
+        assert rate_kwargs["base_currency_ticker"] == "USD"
+        _, kwargs = uow.ledgers.add_one.await_args
+        assert kwargs["data"]["base_currency_rate"] == Decimal("1.08")
+
+    async def test_does_not_fetch_rate_when_currency_matches_account_base_currency(self, uow):
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1, account_id=1, is_archived=False)
+        uow.accounts.find_one_or_none.return_value = make_account_row(id=1, base_currency_ticker="USD")
+        uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("0")}
+        uow.ledgers.add_one.return_value = make_ledger_row(balance_id=1, amount=Decimal("100"))
+        exchange_rate_service = AsyncMock()
+
+        await LedgerService._record_single_leg_operation(
+            uow=uow,
+            payload=RecordSingleLegOperationPayload(
+                operation_type=OperationTypeEnum.INCOME,
+                balance_id=1,
+                amount=Decimal("100"),
+                currency_ticker="USD",
+            ),
+            exchange_rate_service=exchange_rate_service,
+        )
+
+        exchange_rate_service.get_historical_rate.assert_not_awaited()
+
+    async def test_manual_rate_takes_priority_over_auto_fetch(self, uow):
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1, account_id=1, is_archived=False)
+        uow.accounts.find_one_or_none.return_value = make_account_row(id=1, base_currency_ticker="USD")
+        uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="EUR")
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"EUR": Decimal("0")}
+        uow.ledgers.add_one.return_value = make_ledger_row(
+            balance_id=1, currency_ticker="EUR", amount=Decimal("100"), base_currency_rate=Decimal("1.5")
+        )
+        exchange_rate_service = AsyncMock()
+
+        await LedgerService._record_single_leg_operation(
+            uow=uow,
+            payload=RecordSingleLegOperationPayload(
+                operation_type=OperationTypeEnum.INCOME,
+                balance_id=1,
+                amount=Decimal("100"),
+                currency_ticker="EUR",
+                base_currency_rate=Decimal("1.5"),
+            ),
+            exchange_rate_service=exchange_rate_service,
+        )
+
+        exchange_rate_service.get_historical_rate.assert_not_awaited()
+        _, kwargs = uow.ledgers.add_one.await_args
+        assert kwargs["data"]["base_currency_rate"] == Decimal("1.5")
+
+    async def test_skips_resolution_entirely_when_disabled(self, uow):
+        # this is how _transfer/_trade call each leg — cost basis is already
+        # derivable from the paired leg amounts, so no fetch should happen
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1, account_id=1, is_archived=False)
+        uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="EUR")
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"EUR": Decimal("0")}
+        uow.ledgers.add_one.return_value = make_ledger_row(balance_id=1, currency_ticker="EUR", amount=Decimal("100"))
+        exchange_rate_service = AsyncMock()
+
+        await LedgerService._record_single_leg_operation(
+            uow=uow,
+            payload=RecordSingleLegOperationPayload(
+                operation_type=OperationTypeEnum.INCOME,
+                balance_id=1,
+                amount=Decimal("100"),
+                currency_ticker="EUR",
+            ),
+            exchange_rate_service=exchange_rate_service,
+            resolve_base_currency_rate=False,
+        )
+
+        exchange_rate_service.get_historical_rate.assert_not_awaited()
+        uow.accounts.find_one_or_none.assert_not_awaited()
+        _, kwargs = uow.ledgers.add_one.await_args
+        assert kwargs["data"]["base_currency_rate"] is None
 
 
 class TestTransfer:
@@ -643,6 +809,36 @@ class TestTransfer:
         assert first_call["executed_at"] == custom_date
         assert second_call["executed_at"] == custom_date
 
+    async def test_propagates_base_currency_rate_to_both_legs(self, uow):
+        uow.balances.find_one_or_none.side_effect = [
+            make_balance_row(id=1, is_archived=False),
+            make_balance_row(id=2, is_archived=False),
+        ]
+        uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.balances.get_name_by_id.return_value = "Card"
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("10000")}
+        uow.ledgers.add_one.side_effect = [
+            make_ledger_row(balance_id=1, amount=Decimal("-100"), base_currency_rate=Decimal("39.2")),
+            make_ledger_row(balance_id=2, amount=Decimal("100"), base_currency_rate=Decimal("39.2")),
+        ]
+
+        await LedgerService._transfer(
+            uow=uow,
+            payload=RecordTransferPayload(
+                operation_type=OperationTypeEnum.TRANSFER,
+                from_balance_id=1,
+                to_balance_id=2,
+                amount=Decimal("100"),
+                currency_ticker="USD",
+                base_currency_rate=Decimal("39.2"),
+            ),
+        )
+
+        first_call = uow.ledgers.add_one.await_args_list[0].kwargs["data"]
+        second_call = uow.ledgers.add_one.await_args_list[1].kwargs["data"]
+        assert first_call["base_currency_rate"] == Decimal("39.2")
+        assert second_call["base_currency_rate"] == Decimal("39.2")
+
 
 class TestTrade:
     async def test_creates_two_legs_on_the_same_balance_sharing_one_operation_id(
@@ -796,6 +992,41 @@ class TestTrade:
         receive_call = uow.ledgers.add_one.await_args_list[1].kwargs["data"]
         assert spend_call["executed_at"] == custom_date
         assert receive_call["executed_at"] == custom_date
+
+    async def test_propagates_base_currency_rate_to_both_legs(self, uow):
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1, is_archived=False)
+        uow.currencies.find_one_or_none.side_effect = [
+            make_currency_row(ticker="USD"),
+            make_currency_row(ticker="AAPL", currency_type="stock"),
+        ]
+        uow.balances.get_name_by_id.return_value = "Broker"
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("10000")}
+        uow.ledgers.add_one.side_effect = [
+            make_ledger_row(
+                balance_id=1, currency_ticker="USD", amount=Decimal("-1000"), base_currency_rate=Decimal("39.2")
+            ),
+            make_ledger_row(
+                balance_id=1, currency_ticker="AAPL", amount=Decimal("5.2"), base_currency_rate=Decimal("39.2")
+            ),
+        ]
+
+        await LedgerService._trade(
+            uow=uow,
+            payload=RecordTradePayload(
+                operation_type=OperationTypeEnum.TRADE,
+                balance_id=1,
+                spend_amount=Decimal("-1000"),
+                spend_currency_ticker="USD",
+                receive_amount=Decimal("5.2"),
+                receive_currency_ticker="AAPL",
+                base_currency_rate=Decimal("39.2"),
+            ),
+        )
+
+        spend_call = uow.ledgers.add_one.await_args_list[0].kwargs["data"]
+        receive_call = uow.ledgers.add_one.await_args_list[1].kwargs["data"]
+        assert spend_call["base_currency_rate"] == Decimal("39.2")
+        assert receive_call["base_currency_rate"] == Decimal("39.2")
 
 
 class TestRecordOperation:

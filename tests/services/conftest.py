@@ -112,6 +112,7 @@ def make_ledger_row(
     counterparty: str | None = None,
     note: str | None = None,
     executed_at: datetime | None = None,
+    base_currency_rate: Decimal | None = None,
 ) -> SimpleNamespace:
     if operation_id is _UNSET:
         operation_id = uuid4()
@@ -126,4 +127,5 @@ def make_ledger_row(
         counterparty=counterparty,
         note=note,
         executed_at=executed_at or datetime(2026, 1, 1, tzinfo=timezone.utc),
+        base_currency_rate=base_currency_rate,
     )
