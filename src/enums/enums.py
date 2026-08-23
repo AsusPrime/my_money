@@ -26,3 +26,15 @@ class RangeEnum(str, Enum):
 class AnalyticTypeEnum(str, Enum):
     BY_BALANCE = "by_balance"
     GENERAL = "general"
+
+
+class AmountModeEnum(str, Enum):
+    FIXED = "fixed"
+    PERCENT_OF_BALANCE = "percent_of_balance"
+
+
+class RecurrenceIntervalEnum(str, Enum):
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    YEARLY = "yearly"

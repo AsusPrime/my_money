@@ -4,6 +4,18 @@ import { useAllBalances, useBalanceAmounts } from '../api/balances'
 import { useCategories } from '../api/categories'
 import { useCurrencies } from '../api/currencies'
 import { useBalanceLedger, useRecordOperation, type OperationPayload } from '../api/ledger'
+import {
+  useCreateRecurringOperation,
+  useDeleteRecurringOperation,
+  useRecurringOperationsByBalance,
+  useUpdateRecurringOperation,
+  type AmountMode,
+  type RecurrenceInterval,
+  type RecurringOperation,
+  type RecurringOperationCreatePayload,
+  type RecurringOperationType,
+  type RecurringOperationUpdatePayload,
+} from '../api/recurringOperations'
 import { formatAmount } from '../lib/format'
 
 const OPERATION_TYPES = ['income', 'expense', 'fee', 'transfer', 'trade'] as const
@@ -322,6 +334,384 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
   )
 }
 
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+function describeSchedule(op: RecurringOperation): string {
+  const time = `${String(op.hour).padStart(2, '0')}:${String(op.minute).padStart(2, '0')} UTC`
+  const day = op.day_of_month === -1 ? 'the last day' : `day ${op.day_of_month}`
+
+  switch (op.interval) {
+    case 'daily':
+      return `Daily at ${time}`
+    case 'weekly':
+      return `Weekly on ${op.day_of_week !== null ? DAY_NAMES[op.day_of_week] : '?'} at ${time}`
+    case 'monthly':
+      return `Monthly on ${day} at ${time}`
+    case 'yearly':
+      return `Yearly on ${op.month !== null ? MONTH_NAMES[op.month - 1] : '?'} (${day}) at ${time}`
+    default:
+      return op.interval
+  }
+}
+
+function RecurringOperationForm({
+  balanceId,
+  existing,
+  onDone,
+}: {
+  balanceId: number
+  existing?: RecurringOperation
+  onDone?: () => void
+}) {
+  const [operationType, setOperationType] = useState<RecurringOperationType>(
+    existing?.operation_type ?? 'income',
+  )
+  const [amountMode, setAmountMode] = useState<AmountMode>(existing?.amount_mode ?? 'fixed')
+  const [amountValue, setAmountValue] = useState(existing?.amount_value ?? '')
+  const [currencyTicker, setCurrencyTicker] = useState(existing?.currency_ticker ?? '')
+  const [categoryId, setCategoryId] = useState(existing?.category_id?.toString() ?? '')
+  const [counterparty, setCounterparty] = useState(existing?.counterparty ?? '')
+  const [note, setNote] = useState(existing?.note ?? '')
+  const [interval, setInterval] = useState<RecurrenceInterval>(existing?.interval ?? 'monthly')
+  const [dayOfMonth, setDayOfMonth] = useState(
+    existing?.day_of_month && existing.day_of_month !== -1 ? String(existing.day_of_month) : '1',
+  )
+  const [lastDayOfMonth, setLastDayOfMonth] = useState(existing?.day_of_month === -1)
+  const [dayOfWeek, setDayOfWeek] = useState(String(existing?.day_of_week ?? 0))
+  const [month, setMonth] = useState(String(existing?.month ?? 1))
+  const [time, setTime] = useState(
+    existing
+      ? `${String(existing.hour).padStart(2, '0')}:${String(existing.minute).padStart(2, '0')}`
+      : '00:00',
+  )
+  const [isActive, setIsActive] = useState(existing?.is_active ?? true)
+
+  const { data: currencies } = useCurrencies()
+  const { data: categories } = useCategories()
+  const createRecurringOperation = useCreateRecurringOperation()
+  const updateRecurringOperation = useUpdateRecurringOperation()
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!amountValue || (!existing && !currencyTicker)) return
+
+    const [hourStr, minuteStr] = time.split(':')
+    const schedule = {
+      day_of_month:
+        interval === 'monthly' || interval === 'yearly'
+          ? lastDayOfMonth
+            ? -1
+            : Number(dayOfMonth)
+          : null,
+      day_of_week: interval === 'weekly' ? Number(dayOfWeek) : null,
+      month: interval === 'yearly' ? Number(month) : null,
+      hour: Number(hourStr || 0),
+      minute: Number(minuteStr || 0),
+    }
+
+    if (existing) {
+      const payload: RecurringOperationUpdatePayload = {
+        amount_mode: amountMode,
+        amount_value: amountValue,
+        category_id: categoryId ? Number(categoryId) : undefined,
+        counterparty: counterparty || undefined,
+        note: note || undefined,
+        interval,
+        is_active: isActive,
+        ...schedule,
+      }
+      updateRecurringOperation.mutate(
+        { id: existing.id, payload },
+        { onSuccess: () => onDone?.() },
+      )
+    } else {
+      const payload: RecurringOperationCreatePayload = {
+        operation_type: operationType,
+        balance_id: balanceId,
+        currency_ticker: currencyTicker,
+        amount_mode: amountMode,
+        amount_value: amountValue,
+        category_id: categoryId ? Number(categoryId) : undefined,
+        counterparty: counterparty || undefined,
+        note: note || undefined,
+        interval,
+        ...schedule,
+      }
+      createRecurringOperation.mutate(payload, {
+        onSuccess: () => {
+          setAmountValue('')
+          setCounterparty('')
+          setNote('')
+        },
+      })
+    }
+  }
+
+  const isPending = createRecurringOperation.isPending || updateRecurringOperation.isPending
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mb-3 flex flex-col gap-2 rounded-lg border border-border bg-surface p-4"
+    >
+      <div className="flex flex-wrap gap-2">
+        {!existing && (
+          <select
+            value={operationType}
+            onChange={(e) => setOperationType(e.target.value as RecurringOperationType)}
+            className="rounded-lg border border-border bg-surface-alt px-3 py-2 text-text focus:border-accent focus:outline-none"
+          >
+            <option value="income">income</option>
+            <option value="expense">expense</option>
+            <option value="fee">fee</option>
+          </select>
+        )}
+        <select
+          value={amountMode}
+          onChange={(e) => setAmountMode(e.target.value as AmountMode)}
+          className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+        >
+          <option value="fixed">Fixed amount</option>
+          <option value="percent_of_balance">% of balance</option>
+        </select>
+        <input
+          value={amountValue}
+          onChange={(e) => setAmountValue(e.target.value)}
+          placeholder={amountMode === 'fixed' ? 'Amount' : 'Percent (e.g. 2.5)'}
+          className="w-36 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+        />
+        {!existing && (
+          <select
+            value={currencyTicker}
+            onChange={(e) => setCurrencyTicker(e.target.value)}
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+          >
+            <option value="">Currency</option>
+            {currencies?.map((c) => (
+              <option key={c.ticker} value={c.ticker}>
+                {c.ticker}
+              </option>
+            ))}
+          </select>
+        )}
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+        >
+          <option value="">Category (optional)</option>
+          {categories?.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <input
+          value={counterparty}
+          onChange={(e) => setCounterparty(e.target.value)}
+          placeholder="Counterparty (optional)"
+          className="min-w-32 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+        />
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Note (optional)"
+          className="min-w-32 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={interval}
+          onChange={(e) => setInterval(e.target.value as RecurrenceInterval)}
+          className="rounded-lg border border-border bg-surface-alt px-3 py-2 text-text focus:border-accent focus:outline-none"
+        >
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+
+        {interval === 'weekly' && (
+          <select
+            value={dayOfWeek}
+            onChange={(e) => setDayOfWeek(e.target.value)}
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+          >
+            {DAY_NAMES.map((name, i) => (
+              <option key={name} value={i}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {interval === 'yearly' && (
+          <select
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+          >
+            {MONTH_NAMES.map((name, i) => (
+              <option key={name} value={i + 1}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {(interval === 'monthly' || interval === 'yearly') && (
+          <>
+            <input
+              type="number"
+              min={1}
+              max={31}
+              value={dayOfMonth}
+              onChange={(e) => setDayOfMonth(e.target.value)}
+              disabled={lastDayOfMonth}
+              placeholder="Day"
+              className="w-20 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none disabled:opacity-40"
+            />
+            <label className="flex items-center gap-1 text-sm text-text-muted">
+              <input
+                type="checkbox"
+                checked={lastDayOfMonth}
+                onChange={(e) => setLastDayOfMonth(e.target.checked)}
+              />
+              Last day of month
+            </label>
+          </>
+        )}
+
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          title="Time of day (UTC)"
+          className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+        />
+
+        {existing && (
+          <label className="flex items-center gap-1 text-sm text-text-muted">
+            <input
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+            />
+            Active
+          </label>
+        )}
+
+        <button
+          type="submit"
+          disabled={isPending}
+          className="ml-auto rounded-lg bg-accent px-4 py-2 font-semibold text-black transition-colors hover:bg-accent-hover disabled:opacity-50"
+        >
+          {existing ? 'Save' : 'Create'}
+        </button>
+        {existing && onDone && (
+          <button
+            type="button"
+            onClick={onDone}
+            className="rounded-lg border border-border px-4 py-2 text-text-muted hover:text-text"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+    </form>
+  )
+}
+
+function RecurringOperationsList({ balanceId }: { balanceId: number }) {
+  const { data: operations, isLoading } = useRecurringOperationsByBalance(balanceId)
+  const deleteRecurringOperation = useDeleteRecurringOperation()
+  const updateRecurringOperation = useUpdateRecurringOperation()
+  const [editingId, setEditingId] = useState<number | null>(null)
+
+  if (isLoading) return <p className="text-text-muted">Loading…</p>
+  if (operations && operations.length === 0) {
+    return <p className="text-text-muted">No recurring operations set up yet.</p>
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {operations?.map((op) =>
+        editingId === op.id ? (
+          <RecurringOperationForm
+            key={op.id}
+            balanceId={balanceId}
+            existing={op}
+            onDone={() => setEditingId(null)}
+          />
+        ) : (
+          <li
+            key={op.id}
+            className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3"
+          >
+            <div>
+              <div className="text-text">
+                {op.operation_type}
+                {' · '}
+                {op.amount_mode === 'fixed'
+                  ? `${formatAmount(op.amount_value)} ${op.currency_ticker}`
+                  : `${op.amount_value}% of ${op.currency_ticker} balance`}
+                {!op.is_active && <span className="text-text-muted"> · paused</span>}
+              </div>
+              <div className="text-xs text-text-muted">
+                {describeSchedule(op)}
+                {op.last_run_at && ` · last ran ${new Date(op.last_run_at).toLocaleString()}`}
+              </div>
+            </div>
+            <div className="flex gap-2 text-xs font-medium">
+              <button
+                onClick={() => setEditingId(op.id)}
+                className="text-text-muted hover:text-text"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() =>
+                  updateRecurringOperation.mutate({
+                    id: op.id,
+                    payload: { is_active: !op.is_active },
+                  })
+                }
+                className="text-text-muted hover:text-text"
+              >
+                {op.is_active ? 'Pause' : 'Resume'}
+              </button>
+              <button
+                onClick={() => deleteRecurringOperation.mutate(op.id)}
+                className="text-negative hover:opacity-80"
+              >
+                Delete
+              </button>
+            </div>
+          </li>
+        ),
+      )}
+    </ul>
+  )
+}
+
 export function BalanceDetailPage() {
   const { balanceId } = useParams<{ balanceId: string }>()
   const id = Number(balanceId)
@@ -349,6 +739,12 @@ export function BalanceDetailPage() {
       </div>
       <RecordOperationForm balanceId={id} />
       <LedgerHistory balanceId={id} />
+
+      <h3 className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide text-text-muted">
+        Recurring Operations
+      </h3>
+      <RecurringOperationForm balanceId={id} />
+      <RecurringOperationsList balanceId={id} />
     </div>
   )
 }

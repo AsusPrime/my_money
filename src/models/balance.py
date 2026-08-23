@@ -14,6 +14,9 @@ class Balance(Base):
     analytics = relationship(
         "Analytic", back_populates="balance", cascade="all, delete-orphan"
     )
+    recurring_operations = relationship(
+        "RecurringOperation", back_populates="balance", cascade="all, delete-orphan"
+    )
 
     id: Mapped[int] = mapped_column(
         Integer,

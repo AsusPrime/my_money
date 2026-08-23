@@ -34,6 +34,15 @@ class Messages(str, Enum):
     COINGECKO_ID_NOT_FOUND = (
         "No CoinGecko id mapping for this crypto ticker — add it to the ticker-to-id mapping"
     )
+    RECURRING_OPERATION_NOT_FOUND = "Recurring operation not found"
+    ERROR_FILLED_TO_ADD_NEW_RECURRING_OPERATION = "Error filled to add new recurring operation"
+    RECURRING_OPERATION_TYPE_NOT_SUPPORTED = (
+        "A recurring operation must be income, expense, or fee — "
+        "transfer/trade are not supported yet"
+    )
+    RECURRING_OPERATION_INVALID_SCHEDULE = (
+        "The schedule fields don't match the given interval — see the logs for specifics"
+    )
 
     def __str__(self):
         return self.value

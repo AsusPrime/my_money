@@ -11,6 +11,7 @@ class Currency(Base):
 
     accounts = relationship("Account", back_populates="base_currency")
     ledgers = relationship("Ledger", back_populates="currency")
+    recurring_operations = relationship("RecurringOperation", back_populates="currency")
 
     ticker: Mapped[str] = mapped_column(
         String(15),
