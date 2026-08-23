@@ -44,6 +44,7 @@ class RecurringOperationScheduler:
             args=[row.id],
             id=self._job_id(row.id),
             replace_existing=True,
+            misfire_grace_time=None,
         )
 
     def unschedule(self, recurring_operation_id: int) -> None:

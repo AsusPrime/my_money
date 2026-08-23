@@ -31,6 +31,9 @@ class TestSchedule:
         assert kwargs["args"] == [1]
         assert kwargs["id"] == "recurring_operation_1"
         assert kwargs["replace_existing"] is True
+        # a live job must never be silently dropped for firing a moment late
+        # under real request load (APScheduler's default grace window is 1s)
+        assert kwargs["misfire_grace_time"] is None
 
     async def test_does_nothing_when_the_row_is_missing(self):
         recurring_operation_scheduler = RecurringOperationScheduler()

@@ -237,7 +237,7 @@ class TestCreateRecurringOperation:
 
         assert exc_info.value.message == Messages.RECURRING_OPERATION_INVALID_SCHEDULE
 
-    @pytest.mark.parametrize("day_of_month", [1, 15, 31, -1])
+    @pytest.mark.parametrize("day_of_month", [1, 15, 31, -1, -2, -31])
     async def test_monthly_accepts_valid_day_of_month(self, uow, day_of_month):
         uow.balances.find_one_or_none.return_value = make_balance_row(id=1, is_archived=False)
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
@@ -249,7 +249,7 @@ class TestCreateRecurringOperation:
 
         uow.recurring_operations.add_one.assert_awaited_once()
 
-    @pytest.mark.parametrize("day_of_month", [-2, 0, 32])
+    @pytest.mark.parametrize("day_of_month", [0, 32, -32])
     async def test_monthly_rejects_invalid_day_of_month(self, uow, day_of_month):
         with pytest.raises(BadRequestError) as exc_info:
             await RecurringOperationService.create_recurring_operation(
@@ -278,6 +278,31 @@ class TestCreateRecurringOperation:
         )
 
         uow.recurring_operations.add_one.assert_awaited_once()
+
+    async def test_yearly_accepts_last_day_of_february_even_in_leap_only_case(self, uow):
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1, is_archived=False)
+        uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.recurring_operations.add_one.return_value = make_recurring_operation_row(id=1)
+
+        # -29 in February only ever occurs on leap years -> allowed, just rare
+        await RecurringOperationService.create_recurring_operation(
+            uow=uow,
+            data=self._payload(interval=RecurrenceIntervalEnum.YEARLY, day_of_month=-29, month=2),
+        )
+
+        uow.recurring_operations.add_one.assert_awaited_once()
+
+    async def test_yearly_rejects_day_of_month_that_can_never_occur_in_the_given_month(self, uow):
+        # -30 in February can never occur - February has at most 29 days
+        with pytest.raises(BadRequestError) as exc_info:
+            await RecurringOperationService.create_recurring_operation(
+                uow=uow,
+                data=self._payload(
+                    interval=RecurrenceIntervalEnum.YEARLY, day_of_month=-30, month=2
+                ),
+            )
+
+        assert exc_info.value.message == Messages.RECURRING_OPERATION_INVALID_SCHEDULE
 
 
 class TestUpdateRecurringOperationById:

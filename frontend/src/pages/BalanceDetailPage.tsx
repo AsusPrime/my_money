@@ -17,6 +17,7 @@ import {
   type RecurringOperationUpdatePayload,
 } from '../api/recurringOperations'
 import { formatAmount } from '../lib/format'
+import { localToUtcSchedule, utcToLocalSchedule } from '../lib/scheduleTimezone'
 
 const OPERATION_TYPES = ['income', 'expense', 'fee', 'transfer', 'trade'] as const
 type OperationType = (typeof OPERATION_TYPES)[number]
@@ -350,19 +351,33 @@ const MONTH_NAMES = [
   'December',
 ]
 
+function describeDayOfMonth(dayOfMonth: number | null): string {
+  if (dayOfMonth === null) return '?'
+  if (dayOfMonth > 0) return `day ${dayOfMonth}`
+  const n = -dayOfMonth
+  return n === 1 ? 'the last day' : `${n} days before the end of the month`
+}
+
 function describeSchedule(op: RecurringOperation): string {
-  const time = `${String(op.hour).padStart(2, '0')}:${String(op.minute).padStart(2, '0')} UTC`
-  const day = op.day_of_month === -1 ? 'the last day' : `day ${op.day_of_month}`
+  const local = utcToLocalSchedule({
+    hour: op.hour,
+    minute: op.minute,
+    dayOfWeek: op.day_of_week,
+    dayOfMonth: op.day_of_month,
+    month: op.month,
+  })
+  const time = `${String(local.hour).padStart(2, '0')}:${String(local.minute).padStart(2, '0')}`
+  const day = describeDayOfMonth(local.dayOfMonth)
 
   switch (op.interval) {
     case 'daily':
       return `Daily at ${time}`
     case 'weekly':
-      return `Weekly on ${op.day_of_week !== null ? DAY_NAMES[op.day_of_week] : '?'} at ${time}`
+      return `Weekly on ${local.dayOfWeek !== null ? DAY_NAMES[local.dayOfWeek] : '?'} at ${time}`
     case 'monthly':
       return `Monthly on ${day} at ${time}`
     case 'yearly':
-      return `Yearly on ${op.month !== null ? MONTH_NAMES[op.month - 1] : '?'} (${day}) at ${time}`
+      return `Yearly on ${local.month !== null ? MONTH_NAMES[local.month - 1] : '?'} (${day}) at ${time}`
     default:
       return op.interval
   }
@@ -387,16 +402,23 @@ function RecurringOperationForm({
   const [counterparty, setCounterparty] = useState(existing?.counterparty ?? '')
   const [note, setNote] = useState(existing?.note ?? '')
   const [interval, setInterval] = useState<RecurrenceInterval>(existing?.interval ?? 'monthly')
-  const [dayOfMonth, setDayOfMonth] = useState(
-    existing?.day_of_month && existing.day_of_month !== -1 ? String(existing.day_of_month) : '1',
-  )
-  const [lastDayOfMonth, setLastDayOfMonth] = useState(existing?.day_of_month === -1)
-  const [dayOfWeek, setDayOfWeek] = useState(String(existing?.day_of_week ?? 0))
-  const [month, setMonth] = useState(String(existing?.month ?? 1))
+  // the backend stores the schedule in UTC; the form always works in the
+  // browser's local time, converting at the UTC boundary on load/submit
+  const initialLocal = existing
+    ? utcToLocalSchedule({
+        hour: existing.hour,
+        minute: existing.minute,
+        dayOfWeek: existing.day_of_week,
+        dayOfMonth: existing.day_of_month,
+        month: existing.month,
+      })
+    : { hour: 0, minute: 0, dayOfWeek: 0, dayOfMonth: 1, month: 1 }
+  const [dayOfMonth, setDayOfMonth] = useState(String(Math.abs(initialLocal.dayOfMonth ?? 1)))
+  const [countFromEnd, setCountFromEnd] = useState((initialLocal.dayOfMonth ?? 1) < 0)
+  const [dayOfWeek, setDayOfWeek] = useState(String(initialLocal.dayOfWeek ?? 0))
+  const [month, setMonth] = useState(String(initialLocal.month ?? 1))
   const [time, setTime] = useState(
-    existing
-      ? `${String(existing.hour).padStart(2, '0')}:${String(existing.minute).padStart(2, '0')}`
-      : '00:00',
+    `${String(initialLocal.hour).padStart(2, '0')}:${String(initialLocal.minute).padStart(2, '0')}`,
   )
   const [isActive, setIsActive] = useState(existing?.is_active ?? true)
 
@@ -410,17 +432,25 @@ function RecurringOperationForm({
     if (!amountValue || (!existing && !currencyTicker)) return
 
     const [hourStr, minuteStr] = time.split(':')
-    const schedule = {
-      day_of_month:
-        interval === 'monthly' || interval === 'yearly'
-          ? lastDayOfMonth
-            ? -1
-            : Number(dayOfMonth)
-          : null,
-      day_of_week: interval === 'weekly' ? Number(dayOfWeek) : null,
-      month: interval === 'yearly' ? Number(month) : null,
+    const localSchedule = {
       hour: Number(hourStr || 0),
       minute: Number(minuteStr || 0),
+      dayOfWeek: interval === 'weekly' ? Number(dayOfWeek) : null,
+      dayOfMonth:
+        interval === 'monthly' || interval === 'yearly'
+          ? countFromEnd
+            ? -Number(dayOfMonth)
+            : Number(dayOfMonth)
+          : null,
+      month: interval === 'yearly' ? Number(month) : null,
+    }
+    const utcSchedule = localToUtcSchedule(localSchedule)
+    const schedule = {
+      day_of_month: utcSchedule.dayOfMonth,
+      day_of_week: utcSchedule.dayOfWeek,
+      month: utcSchedule.month,
+      hour: utcSchedule.hour,
+      minute: utcSchedule.minute,
     }
 
     if (existing) {
@@ -585,18 +615,18 @@ function RecurringOperationForm({
               max={31}
               value={dayOfMonth}
               onChange={(e) => setDayOfMonth(e.target.value)}
-              disabled={lastDayOfMonth}
               placeholder="Day"
-              className="w-20 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none disabled:opacity-40"
+              className="w-20 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
-            <label className="flex items-center gap-1 text-sm text-text-muted">
-              <input
-                type="checkbox"
-                checked={lastDayOfMonth}
-                onChange={(e) => setLastDayOfMonth(e.target.checked)}
-              />
-              Last day of month
-            </label>
+            <select
+              value={countFromEnd ? 'end' : 'start'}
+              onChange={(e) => setCountFromEnd(e.target.value === 'end')}
+              title="Count the day from the start or from the end of the month"
+              className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+            >
+              <option value="start">from start of month</option>
+              <option value="end">from end of month</option>
+            </select>
           </>
         )}
 
@@ -604,7 +634,7 @@ function RecurringOperationForm({
           type="time"
           value={time}
           onChange={(e) => setTime(e.target.value)}
-          title="Time of day (UTC)"
+          title="Time of day (your local time)"
           className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
         />
 

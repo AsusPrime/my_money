@@ -9,7 +9,6 @@ from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
 from src.entities.recurring_operation import RecurringOperationEntity
 from src.enums.enums import OperationTypeEnum
-from src.enums.enums import RecurrenceIntervalEnum
 from src.schemas.ledger import RecordSingleLegOperationPayload
 from src.schemas.recurring_operation import RecurringOperationCreateSchema
 from src.schemas.recurring_operation import RecurringOperationListResponseSchema
@@ -54,7 +53,7 @@ class RecurringOperationService:
         if data.operation_type not in RECURRING_OPERATION_SUPPORTED_TYPES:
             raise BadRequestError(Messages.RECURRING_OPERATION_TYPE_NOT_SUPPORTED)
 
-        RecurringOperationService._validate_schedule(
+        RecurringOperationEntity.validate_schedule(
             interval=data.interval,
             day_of_month=data.day_of_month,
             day_of_week=data.day_of_week,
@@ -88,7 +87,7 @@ class RecurringOperationService:
             for field in (data.interval, data.day_of_month, data.day_of_week, data.month)
         )
         if schedule_fields_touched:
-            RecurringOperationService._validate_schedule(
+            RecurringOperationEntity.validate_schedule(
                 interval=updated_row.interval,
                 day_of_month=updated_row.day_of_month,
                 day_of_week=updated_row.day_of_week,
@@ -134,43 +133,3 @@ class RecurringOperationService:
             logger.warning(f"Recurring operation {recurring_operation_id} failed to run: {e}")
 
         entity.mark_ran(ran_at=ran_at)
-
-
-    @staticmethod
-    def _validate_schedule(
-        interval: RecurrenceIntervalEnum,
-        day_of_month: int | None,
-        day_of_week: int | None,
-        month: int | None,
-    ) -> None:
-        if interval == RecurrenceIntervalEnum.DAILY:
-            if day_of_month is not None or day_of_week is not None or month is not None:
-                logger.warning("DAILY recurring operation must not set day_of_month/day_of_week/month")
-                raise BadRequestError(Messages.RECURRING_OPERATION_INVALID_SCHEDULE)
-
-        elif interval == RecurrenceIntervalEnum.WEEKLY:
-            if day_of_week is None or not (0 <= day_of_week <= 6):
-                logger.warning("WEEKLY recurring operation requires day_of_week in 0..6")
-                raise BadRequestError(Messages.RECURRING_OPERATION_INVALID_SCHEDULE)
-            if day_of_month is not None or month is not None:
-                logger.warning("WEEKLY recurring operation must not set day_of_month/month")
-                raise BadRequestError(Messages.RECURRING_OPERATION_INVALID_SCHEDULE)
-
-        elif interval == RecurrenceIntervalEnum.MONTHLY:
-            if day_of_month is None or not (day_of_month == -1 or 1 <= day_of_month <= 31):
-                logger.warning("MONTHLY recurring operation requires day_of_month in 1..31 or -1")
-                raise BadRequestError(Messages.RECURRING_OPERATION_INVALID_SCHEDULE)
-            if day_of_week is not None or month is not None:
-                logger.warning("MONTHLY recurring operation must not set day_of_week/month")
-                raise BadRequestError(Messages.RECURRING_OPERATION_INVALID_SCHEDULE)
-
-        elif interval == RecurrenceIntervalEnum.YEARLY:
-            if month is None or not (1 <= month <= 12):
-                logger.warning("YEARLY recurring operation requires month in 1..12")
-                raise BadRequestError(Messages.RECURRING_OPERATION_INVALID_SCHEDULE)
-            if day_of_month is None or not (day_of_month == -1 or 1 <= day_of_month <= 31):
-                logger.warning("YEARLY recurring operation requires day_of_month in 1..31 or -1")
-                raise BadRequestError(Messages.RECURRING_OPERATION_INVALID_SCHEDULE)
-            if day_of_week is not None:
-                logger.warning("YEARLY recurring operation must not set day_of_week")
-                raise BadRequestError(Messages.RECURRING_OPERATION_INVALID_SCHEDULE)

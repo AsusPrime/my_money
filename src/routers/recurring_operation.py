@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from fastapi import BackgroundTasks
 from fastapi import Request
 from fastapi import status
 from loguru import logger
@@ -56,9 +57,10 @@ async def create_recurring_operation_api(
     uow: UOWDep,
     recurring_operation_service: RecurringOperationServiceDep,
     request: Request,
+    background_tasks: BackgroundTasks,
 ):
     new_row = await recurring_operation_service.create_recurring_operation(uow=uow, data=body)
-    await request.app.state.recurring_operation_scheduler.schedule(new_row.id)
+    background_tasks.add_task(request.app.state.recurring_operation_scheduler.schedule, new_row.id)
     logger.info(f"Recurring operation created: {new_row.id}")
     return new_row
 
@@ -74,15 +76,16 @@ async def update_recurring_operation_api(
     uow: UOWDep,
     recurring_operation_service: RecurringOperationServiceDep,
     request: Request,
+    background_tasks: BackgroundTasks,
 ):
     updated_row = await recurring_operation_service.update_recurring_operation_by_id(
         uow=uow, recurring_operation_id=recurring_operation_id, data=body
     )
     scheduler = request.app.state.recurring_operation_scheduler
     if updated_row.is_active:
-        await scheduler.schedule(updated_row.id)
+        background_tasks.add_task(scheduler.schedule, updated_row.id)
     else:
-        scheduler.unschedule(updated_row.id)
+        background_tasks.add_task(scheduler.unschedule, updated_row.id)
     logger.info(f"Recurring operation updated: {recurring_operation_id}")
     return updated_row
 
