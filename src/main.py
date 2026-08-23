@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,14 +13,27 @@ from src.routers.category import router as categories_router
 from src.routers.currency import router as currencies_router
 from src.routers.healthcheck import router as healthcheck_router
 from src.routers.ledger import router as ledger_router
+from src.routers.recurring_operation import router as recurring_operations_router
 from src.utils.logger.setup_logger import setup_logger
+from src.utils.scheduler.scheduler import RecurringOperationScheduler
 
 setup_logger()
 
 APP_VERSION = "0.1.0"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.recurring_operation_scheduler = RecurringOperationScheduler()
+    await app.state.recurring_operation_scheduler.start()
+    yield
+    app.state.recurring_operation_scheduler.stop()
+
+
 app = FastAPI(
     title="my_money-API",
     version=APP_VERSION,
+    lifespan=lifespan,
 )
 app.state.app_version = APP_VERSION  # noqa
 
@@ -39,6 +54,7 @@ app.include_router(balances_router)
 app.include_router(currencies_router)
 app.include_router(categories_router)
 app.include_router(ledger_router)
+app.include_router(recurring_operations_router)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ from src.repositories.balance import BalanceRepository
 from src.repositories.category import CategoryRepository
 from src.repositories.currency import CurrencyRepository
 from src.repositories.ledger import LedgerRepository
+from src.repositories.recurring_operation import RecurringOperationRepository
 
 
 class IUnitOfWork(ABC):
@@ -20,6 +21,7 @@ class IUnitOfWork(ABC):
     balances: BalanceRepository
     ledgers: LedgerRepository
     categories: CategoryRepository
+    recurring_operations: RecurringOperationRepository
 
     @abstractmethod
     def __init__(self):
@@ -58,6 +60,7 @@ class UnitOfWork(IUnitOfWork):
         self.balances = BalanceRepository(self.session)
         self.ledgers = LedgerRepository(self.session)
         self.categories = CategoryRepository(self.session)
+        self.recurring_operations = RecurringOperationRepository(self.session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
