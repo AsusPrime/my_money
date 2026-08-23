@@ -27,6 +27,7 @@ class Messages(str, Enum):
     ERROR_FILLED_TO_ADD_NEW_CATEGORY = "Error filled to add new category"
     CATEGORY_IN_USE = "Category is still in use and cannot be deleted"
     LEDGER_ENTRY_NOT_FOUND = "Ledger entry not found"
+    LEDGER_UPDATE_NO_FIELDS = "No editable fields were given"
     RATE_CLIENT_NOT_FOUND = "No rate client configured for this currency type"
     CURRENCY_TICKER_NOT_FOUND = (
         "This ticker does not exist for the given currency type — check the spelling"

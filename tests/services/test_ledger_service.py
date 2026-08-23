@@ -1112,6 +1112,17 @@ class TestUpdateOperationById:
         unsafe_fields = {"amount", "currency_ticker", "base_currency_rate", "operation_type"}
         assert unsafe_fields.isdisjoint(LedgerUpdateSchema.model_fields)
 
+    async def test_raises_bad_request_when_no_fields_are_given(self, uow):
+        # an all-unset (or all-unknown-field) body would otherwise reach the
+        # repository as an empty SET clause and blow up as a raw DB error
+        with pytest.raises(BadRequestError) as exc_info:
+            await LedgerService.update_ledger_by_id(
+                uow=uow, ledger_id=1, ledger_data=LedgerUpdateSchema()
+            )
+
+        assert exc_info.value.message == Messages.LEDGER_UPDATE_NO_FIELDS
+        uow.ledgers.edit_one.assert_not_called()
+
     async def test_updates_ledger_entry(self, uow):
         uow.ledgers.edit_one.return_value = make_ledger_row(id=1, note="Corrected")
 

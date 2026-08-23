@@ -73,6 +73,12 @@ class SQLAlchemyRepository(AbstractRepository):
                 f"this would update ALL rows. Provide _id or filter_by."
             )
 
+        if not data:
+            raise ValueError(
+                f"edit_one called with no data on {self.model.__tablename__} — "
+                f"an empty SET clause is invalid SQL."
+            )
+
         stmt = (
             update(self.model)
             .values(**data)

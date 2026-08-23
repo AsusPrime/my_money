@@ -217,9 +217,11 @@ class LedgerService:
     async def update_ledger_by_id(
         uow: IUnitOfWork, ledger_id: int, ledger_data: LedgerUpdateSchema
     ) -> LedgerResponseSchema:
-        updated_operation = await uow.ledgers.edit_one(
-            id=ledger_id, data=ledger_data.model_dump(exclude_unset=True)
-        )
+        data = ledger_data.model_dump(exclude_unset=True)
+        if not data:
+            raise BadRequestError(Messages.LEDGER_UPDATE_NO_FIELDS)
+
+        updated_operation = await uow.ledgers.edit_one(id=ledger_id, data=data)
 
         if updated_operation is None:
             raise NotFoundError(Messages.LEDGER_ENTRY_NOT_FOUND)
