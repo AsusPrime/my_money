@@ -195,6 +195,25 @@ class LedgerService:
         )
 
     @staticmethod
+    async def get_operation_group_by_ledger_id(
+        uow: IUnitOfWork, ledger_id: int
+    ) -> LedgerListResponseSchema:
+        entry = await uow.ledgers.find_one_or_none(id=ledger_id)
+
+        if entry is None:
+            raise NotFoundError(Messages.LEDGER_ENTRY_NOT_FOUND)
+
+        legs = (
+            [entry]
+            if entry.operation_id is None
+            else await uow.ledgers.find_all(operation_id=entry.operation_id)
+        )
+
+        return LedgerListResponseSchema(
+            items=[LedgerResponseSchema.model_validate(leg) for leg in legs]
+        )
+
+    @staticmethod
     async def update_ledger_by_id(
         uow: IUnitOfWork, ledger_id: int, ledger_data: LedgerUpdateSchema
     ) -> LedgerResponseSchema:
@@ -224,6 +243,15 @@ class LedgerService:
         legs = await uow.ledgers.find_all(operation_id=entry.operation_id)
         for leg in legs:
             await uow.ledgers.delete_one(_id=leg.id)
+
+    @staticmethod
+    async def replace_operation(
+        uow: IUnitOfWork,
+        ledger_id: int,
+        payload: RecordSingleLegOperationPayload | RecordTransferPayload | RecordTradePayload,
+    ) -> LedgerResponseSchema | LedgerListResponseSchema:
+        await LedgerService.delete_operation_by_id(uow=uow, ledger_id=ledger_id)
+        return await LedgerService.record_operation(uow=uow, payload=payload)
 
     @staticmethod
     async def _trade(

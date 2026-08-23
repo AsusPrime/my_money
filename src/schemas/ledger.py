@@ -31,11 +31,9 @@ class LedgerListResponseSchema(BaseModel):
 
 
 class LedgerUpdateSchema(BaseModel):
-    amount: Decimal | None = None
     category_id: int | None = None
     counterparty: str | None = None
     note: str | None = None
-    base_currency_rate: Decimal | None = None
 
 
 class _FeeLegMixin(BaseModel):

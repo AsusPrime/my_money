@@ -1104,6 +1104,14 @@ class TestRecordOperation:
 
 
 class TestUpdateOperationById:
+    async def test_update_schema_has_no_amount_affecting_fields(self):
+        # amount/currency/rate changes need sign re-normalization, a funds
+        # re-check, and (for transfer/trade) sibling-leg consistency — none of
+        # which a raw field patch can guarantee, so they go through
+        # replace_operation instead, never through this schema
+        unsafe_fields = {"amount", "currency_ticker", "base_currency_rate", "operation_type"}
+        assert unsafe_fields.isdisjoint(LedgerUpdateSchema.model_fields)
+
     async def test_updates_ledger_entry(self, uow):
         uow.ledgers.edit_one.return_value = make_ledger_row(id=1, note="Corrected")
 
@@ -1180,4 +1188,80 @@ class TestDeleteOperationById:
             await LedgerService.delete_operation_by_id(uow=uow, ledger_id=999)
 
         assert exc_info.value.message == Messages.LEDGER_ENTRY_NOT_FOUND
+
+
+class TestGetOperationGroupByLedgerId:
+    """A transfer/trade leg's sibling(s) can live on a different balance, so
+    the group can't be reconstructed from the balance-scoped ledger list —
+    this is what the edit UI uses to pre-fill the from/to/fee legs."""
+
+    async def test_returns_only_itself_when_operation_id_is_none(self, uow):
+        entry = make_ledger_row(id=1, operation_id=None)
+        uow.ledgers.find_one_or_none.return_value = entry
+
+        result = await LedgerService.get_operation_group_by_ledger_id(uow=uow, ledger_id=1)
+
+        assert [item.id for item in result.items] == [1]
+        uow.ledgers.find_all.assert_not_called()
+
+    async def test_returns_every_leg_sharing_the_operation_id(self, uow):
+        shared_id = uuid4()
+        entry = make_ledger_row(id=1, operation_id=shared_id, balance_id=1)
+        sibling = make_ledger_row(id=2, operation_id=shared_id, balance_id=2)
+        uow.ledgers.find_one_or_none.return_value = entry
+        uow.ledgers.find_all.return_value = [entry, sibling]
+
+        result = await LedgerService.get_operation_group_by_ledger_id(uow=uow, ledger_id=1)
+
+        uow.ledgers.find_all.assert_awaited_once_with(operation_id=shared_id)
+        assert {item.id for item in result.items} == {1, 2}
+
+    async def test_raises_not_found_when_missing(self, uow):
+        uow.ledgers.find_one_or_none.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            await LedgerService.get_operation_group_by_ledger_id(uow=uow, ledger_id=999)
+
+        assert exc_info.value.message == Messages.LEDGER_ENTRY_NOT_FOUND
+
+
+class TestReplaceOperation:
+    """Editing amount/currency/legs reuses record_operation's already-correct
+    sign/funds/rate logic rather than duplicating it — delete the old leg(s),
+    then record the new payload fresh, both inside the same transaction."""
+
+    async def test_deletes_the_old_operation_then_records_the_new_payload(self, uow):
+        payload = RecordSingleLegOperationPayload(
+            operation_type=OperationTypeEnum.EXPENSE,
+            balance_id=1,
+            amount=Decimal("60"),
+            currency_ticker="USD",
+        )
+        with (
+            patch.object(
+                LedgerService, "delete_operation_by_id", new=AsyncMock()
+            ) as mocked_delete,
+            patch.object(
+                LedgerService, "record_operation", new=AsyncMock()
+            ) as mocked_record,
+        ):
+            await LedgerService.replace_operation(uow=uow, ledger_id=1, payload=payload)
+
+        mocked_delete.assert_awaited_once_with(uow=uow, ledger_id=1)
+        mocked_record.assert_awaited_once_with(uow=uow, payload=payload)
+
+    async def test_propagates_not_found_when_the_operation_is_missing(self, uow):
+        uow.ledgers.find_one_or_none.return_value = None
+        payload = RecordSingleLegOperationPayload(
+            operation_type=OperationTypeEnum.EXPENSE,
+            balance_id=1,
+            amount=Decimal("60"),
+            currency_ticker="USD",
+        )
+
+        with pytest.raises(NotFoundError) as exc_info:
+            await LedgerService.replace_operation(uow=uow, ledger_id=999, payload=payload)
+
+        assert exc_info.value.message == Messages.LEDGER_ENTRY_NOT_FOUND
+        uow.ledgers.add_one.assert_not_called()
         uow.ledgers.delete_one.assert_not_called()
