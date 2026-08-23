@@ -6,6 +6,7 @@ from .currency import Currency
 from .category import Category
 from .analytic import Analytic
 from .ledger import Ledger
+from .recurring_operation import RecurringOperation
 
 __all__ = [
     "Base",
@@ -16,4 +17,5 @@ __all__ = [
     "Category",
     "Analytic",
     "Ledger",
+    "RecurringOperation",
 ]

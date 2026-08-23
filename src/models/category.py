@@ -9,6 +9,7 @@ class Category(Base):
     __tablename__ = "categories"
 
     ledgers = relationship("Ledger", back_populates="category")
+    recurring_operations = relationship("RecurringOperation", back_populates="category")
 
     id: Mapped[int] = mapped_column(
         Integer,
