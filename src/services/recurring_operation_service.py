@@ -82,18 +82,6 @@ class RecurringOperationService:
         if updated_row is None:
             raise NotFoundError(Messages.RECURRING_OPERATION_NOT_FOUND)
 
-        schedule_fields_touched = any(
-            field is not None
-            for field in (data.interval, data.day_of_month, data.day_of_week, data.month)
-        )
-        if schedule_fields_touched:
-            RecurringOperationEntity.validate_schedule(
-                interval=updated_row.interval,
-                day_of_month=updated_row.day_of_month,
-                day_of_week=updated_row.day_of_week,
-                month=updated_row.month,
-            )
-
         return RecurringOperationResponseSchema.model_validate(updated_row)
 
     @staticmethod

@@ -81,11 +81,12 @@ async def update_recurring_operation_api(
     updated_row = await recurring_operation_service.update_recurring_operation_by_id(
         uow=uow, recurring_operation_id=recurring_operation_id, data=body
     )
-    scheduler = request.app.state.recurring_operation_scheduler
-    if updated_row.is_active:
-        background_tasks.add_task(scheduler.schedule, updated_row.id)
-    else:
-        background_tasks.add_task(scheduler.unschedule, updated_row.id)
+    if body.is_active is not None:
+        scheduler = request.app.state.recurring_operation_scheduler
+        if updated_row.is_active:
+            background_tasks.add_task(scheduler.schedule, updated_row.id)
+        else:
+            background_tasks.add_task(scheduler.unschedule, updated_row.id)
     logger.info(f"Recurring operation updated: {recurring_operation_id}")
     return updated_row
 

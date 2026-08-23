@@ -331,37 +331,12 @@ class TestUpdateRecurringOperationById:
 
         assert exc_info.value.message == Messages.RECURRING_OPERATION_NOT_FOUND
 
-    async def test_does_not_revalidate_schedule_when_schedule_fields_untouched(self, uow):
-        # e.g. just toggling is_active — the stored schedule is already valid
-        uow.recurring_operations.edit_one.return_value = make_recurring_operation_row(
-            id=1, interval=RecurrenceIntervalEnum.DAILY, day_of_month=None
-        )
-
-        result = await RecurringOperationService.update_recurring_operation_by_id(
-            uow=uow,
-            recurring_operation_id=1,
-            data=RecurringOperationUpdateSchema(is_active=False),
-        )
-
-        assert result.id == 1
-
-    async def test_revalidates_schedule_when_interval_changes_to_an_inconsistent_state(self, uow):
-        # switched to WEEKLY but the stored row has no day_of_week set
-        uow.recurring_operations.edit_one.return_value = make_recurring_operation_row(
-            id=1,
-            interval=RecurrenceIntervalEnum.WEEKLY,
-            day_of_month=None,
-            day_of_week=None,
-        )
-
-        with pytest.raises(BadRequestError) as exc_info:
-            await RecurringOperationService.update_recurring_operation_by_id(
-                uow=uow,
-                recurring_operation_id=1,
-                data=RecurringOperationUpdateSchema(interval=RecurrenceIntervalEnum.WEEKLY),
-            )
-
-        assert exc_info.value.message == Messages.RECURRING_OPERATION_INVALID_SCHEDULE
+    async def test_update_schema_has_no_schedule_fields(self):
+        # rescheduling mid-cycle is ambiguous (e.g. already fired today at
+        # 15:00, now moved to 15:30 — does it fire again today?), so the
+        # schedule can only be set at creation; changing it means delete + create
+        schedule_fields = {"interval", "day_of_month", "day_of_week", "month", "hour", "minute"}
+        assert schedule_fields.isdisjoint(RecurringOperationUpdateSchema.model_fields)
 
 
 class TestDeleteRecurringOperationById:

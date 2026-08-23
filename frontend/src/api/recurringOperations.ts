@@ -45,20 +45,13 @@ export interface RecurringOperationCreatePayload {
 }
 
 export interface RecurringOperationUpdatePayload {
+  // schedule fields (interval/day_of_month/day_of_week/month/hour/minute) are
+  // not editable — rescheduling mid-cycle is ambiguous, so it's delete + create
   amount_mode?: AmountMode
   amount_value?: string
   category_id?: number
   counterparty?: string
   note?: string
-  interval?: RecurrenceInterval
-  // explicit null (not just omitted) — clears whatever the previous interval
-  // had set, so switching e.g. monthly -> daily doesn't leave a stale
-  // day_of_month behind that then fails the backend's schedule validation
-  day_of_month?: number | null
-  day_of_week?: number | null
-  month?: number | null
-  hour?: number
-  minute?: number
   is_active?: boolean
 }
 

@@ -431,44 +431,36 @@ function RecurringOperationForm({
     e.preventDefault()
     if (!amountValue || (!existing && !currencyTicker)) return
 
-    const [hourStr, minuteStr] = time.split(':')
-    const localSchedule = {
-      hour: Number(hourStr || 0),
-      minute: Number(minuteStr || 0),
-      dayOfWeek: interval === 'weekly' ? Number(dayOfWeek) : null,
-      dayOfMonth:
-        interval === 'monthly' || interval === 'yearly'
-          ? countFromEnd
-            ? -Number(dayOfMonth)
-            : Number(dayOfMonth)
-          : null,
-      month: interval === 'yearly' ? Number(month) : null,
-    }
-    const utcSchedule = localToUtcSchedule(localSchedule)
-    const schedule = {
-      day_of_month: utcSchedule.dayOfMonth,
-      day_of_week: utcSchedule.dayOfWeek,
-      month: utcSchedule.month,
-      hour: utcSchedule.hour,
-      minute: utcSchedule.minute,
-    }
-
     if (existing) {
+      // schedule fields are not part of RecurringOperationUpdatePayload —
+      // rescheduling means deleting this operation and creating a new one
       const payload: RecurringOperationUpdatePayload = {
         amount_mode: amountMode,
         amount_value: amountValue,
         category_id: categoryId ? Number(categoryId) : undefined,
         counterparty: counterparty || undefined,
         note: note || undefined,
-        interval,
         is_active: isActive,
-        ...schedule,
       }
       updateRecurringOperation.mutate(
         { id: existing.id, payload },
         { onSuccess: () => onDone?.() },
       )
     } else {
+      const [hourStr, minuteStr] = time.split(':')
+      const localSchedule = {
+        hour: Number(hourStr || 0),
+        minute: Number(minuteStr || 0),
+        dayOfWeek: interval === 'weekly' ? Number(dayOfWeek) : null,
+        dayOfMonth:
+          interval === 'monthly' || interval === 'yearly'
+            ? countFromEnd
+              ? -Number(dayOfMonth)
+              : Number(dayOfMonth)
+            : null,
+        month: interval === 'yearly' ? Number(month) : null,
+      }
+      const utcSchedule = localToUtcSchedule(localSchedule)
       const payload: RecurringOperationCreatePayload = {
         operation_type: operationType,
         balance_id: balanceId,
@@ -479,7 +471,11 @@ function RecurringOperationForm({
         counterparty: counterparty || undefined,
         note: note || undefined,
         interval,
-        ...schedule,
+        day_of_month: utcSchedule.dayOfMonth,
+        day_of_week: utcSchedule.dayOfWeek,
+        month: utcSchedule.month,
+        hour: utcSchedule.hour,
+        minute: utcSchedule.minute,
       }
       createRecurringOperation.mutate(payload, {
         onSuccess: () => {
@@ -567,77 +563,86 @@ function RecurringOperationForm({
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={interval}
-          onChange={(e) => setInterval(e.target.value as RecurrenceInterval)}
-          className="rounded-lg border border-border bg-surface-alt px-3 py-2 text-text focus:border-accent focus:outline-none"
-        >
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-          <option value="yearly">Yearly</option>
-        </select>
-
-        {interval === 'weekly' && (
+      {existing ? (
+        <p className="text-sm text-text-muted">
+          Schedule: {describeSchedule(existing)} — to change it, delete this operation and
+          create a new one.
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
           <select
-            value={dayOfWeek}
-            onChange={(e) => setDayOfWeek(e.target.value)}
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+            value={interval}
+            onChange={(e) => setInterval(e.target.value as RecurrenceInterval)}
+            className="rounded-lg border border-border bg-surface-alt px-3 py-2 text-text focus:border-accent focus:outline-none"
           >
-            {DAY_NAMES.map((name, i) => (
-              <option key={name} value={i}>
-                {name}
-              </option>
-            ))}
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
           </select>
-        )}
 
-        {interval === 'yearly' && (
-          <select
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
-          >
-            {MONTH_NAMES.map((name, i) => (
-              <option key={name} value={i + 1}>
-                {name}
-              </option>
-            ))}
-          </select>
-        )}
-
-        {(interval === 'monthly' || interval === 'yearly') && (
-          <>
-            <input
-              type="number"
-              min={1}
-              max={31}
-              value={dayOfMonth}
-              onChange={(e) => setDayOfMonth(e.target.value)}
-              placeholder="Day"
-              className="w-20 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
-            />
+          {interval === 'weekly' && (
             <select
-              value={countFromEnd ? 'end' : 'start'}
-              onChange={(e) => setCountFromEnd(e.target.value === 'end')}
-              title="Count the day from the start or from the end of the month"
+              value={dayOfWeek}
+              onChange={(e) => setDayOfWeek(e.target.value)}
               className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
             >
-              <option value="start">from start of month</option>
-              <option value="end">from end of month</option>
+              {DAY_NAMES.map((name, i) => (
+                <option key={name} value={i}>
+                  {name}
+                </option>
+              ))}
             </select>
-          </>
-        )}
+          )}
 
-        <input
-          type="time"
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-          title="Time of day (your local time)"
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
-        />
+          {interval === 'yearly' && (
+            <select
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+            >
+              {MONTH_NAMES.map((name, i) => (
+                <option key={name} value={i + 1}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          )}
 
+          {(interval === 'monthly' || interval === 'yearly') && (
+            <>
+              <input
+                type="number"
+                min={1}
+                max={31}
+                value={dayOfMonth}
+                onChange={(e) => setDayOfMonth(e.target.value)}
+                placeholder="Day"
+                className="w-20 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+              />
+              <select
+                value={countFromEnd ? 'end' : 'start'}
+                onChange={(e) => setCountFromEnd(e.target.value === 'end')}
+                title="Count the day from the start or from the end of the month"
+                className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+              >
+                <option value="start">from start of month</option>
+                <option value="end">from end of month</option>
+              </select>
+            </>
+          )}
+
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            title="Time of day (your local time)"
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+          />
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
         {existing && (
           <label className="flex items-center gap-1 text-sm text-text-muted">
             <input

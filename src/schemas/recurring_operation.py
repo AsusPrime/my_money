@@ -60,10 +60,4 @@ class RecurringOperationUpdateSchema(BaseModel):
     category_id: int | None = None
     counterparty: str | None = None
     note: str | None = None
-    interval: RecurrenceIntervalEnum | None = None
-    day_of_month: int | None = None
-    day_of_week: int | None = None
-    month: int | None = None
-    hour: int | None = None
-    minute: int | None = None
     is_active: bool | None = None
