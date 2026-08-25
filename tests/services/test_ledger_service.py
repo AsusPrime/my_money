@@ -1276,3 +1276,46 @@ class TestReplaceOperation:
         assert exc_info.value.message == Messages.LEDGER_ENTRY_NOT_FOUND
         uow.ledgers.add_one.assert_not_called()
         uow.ledgers.delete_one.assert_not_called()
+
+
+class TestGetOperationsByBalanceId:
+    async def test_has_more_false_when_fewer_rows_than_limit(self, uow):
+        uow.ledgers.find_all_by_balance_id.return_value = [
+            make_ledger_row(id=1),
+            make_ledger_row(id=2),
+        ]
+
+        result = await LedgerService.get_operations_by_balance_id(
+            uow=uow, balance_id=1, limit=10, offset=0
+        )
+
+        assert [i.id for i in result.items] == [1, 2]
+        assert result.has_more is False
+        uow.ledgers.find_all_by_balance_id.assert_awaited_once_with(
+            balance_id=1, limit=11, offset=0
+        )
+
+    async def test_has_more_true_and_trims_the_extra_probe_row(self, uow):
+        uow.ledgers.find_all_by_balance_id.return_value = [
+            make_ledger_row(id=1),
+            make_ledger_row(id=2),
+            make_ledger_row(id=3),
+        ]
+
+        result = await LedgerService.get_operations_by_balance_id(
+            uow=uow, balance_id=1, limit=2, offset=0
+        )
+
+        assert [i.id for i in result.items] == [1, 2]
+        assert result.has_more is True
+
+    async def test_passes_offset_through_to_the_repository(self, uow):
+        uow.ledgers.find_all_by_balance_id.return_value = []
+
+        await LedgerService.get_operations_by_balance_id(
+            uow=uow, balance_id=1, limit=10, offset=20
+        )
+
+        uow.ledgers.find_all_by_balance_id.assert_awaited_once_with(
+            balance_id=1, limit=11, offset=20
+        )

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { useAccounts } from '../api/accounts'
+import { useAccounts, useAccountTotal } from '../api/accounts'
 import {
   useArchiveBalance,
   useBalanceAmounts,
@@ -77,6 +77,7 @@ export function BalancesPage() {
   const selectedAccountId = accountId ?? activeAccounts?.[0]?.id ?? null
   const { data: balances, isLoading } = useBalances(selectedAccountId)
   const activeBalances = balances?.filter((balance) => !balance.is_archived)
+  const { data: accountTotal } = useAccountTotal(selectedAccountId)
 
   if (activeAccounts && activeAccounts.length === 0) {
     return (
@@ -88,7 +89,18 @@ export function BalancesPage() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <h2 className="mb-4 text-xl font-bold text-text">Balances</h2>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+        <h2 className="text-xl font-bold text-text">Balances</h2>
+        {accountTotal && (
+          <div className="text-right">
+            <div className="text-xs uppercase tracking-wide text-text-muted">Total</div>
+            <div className="font-mono text-xl font-bold text-text">
+              {formatAmount(accountTotal.total)}{' '}
+              <span className="text-sm text-text-muted">{accountTotal.currency_ticker}</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       <select
         value={selectedAccountId ?? ''}

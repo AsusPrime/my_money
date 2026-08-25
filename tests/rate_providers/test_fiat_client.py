@@ -154,3 +154,47 @@ class TestFiatRateClient:
 
     async def test_ticker_exists_false_for_unknown_code(self):
         assert await FiatRateClient().ticker_exists(currency_ticker="ZZZ") is False
+
+    async def test_caches_current_rate_and_does_not_refetch_within_ttl(self):
+        client = mock_http_client({"eur": {"usd": 1.08}})
+        rate_client = FiatRateClient()
+        with patch("src.rate_providers.fiat.client.httpx.AsyncClient", return_value=client):
+            first = await rate_client.get_current(
+                currency_ticker="EUR", base_currency_ticker="USD"
+            )
+            second = await rate_client.get_current(
+                currency_ticker="EUR", base_currency_ticker="USD"
+            )
+
+        assert first == second == Decimal("1.08")
+        client.get.assert_awaited_once()
+
+    async def test_get_historical_is_never_cached(self):
+        # a ledger entry needs the actual rate at its specific past date, not
+        # a cached "current" approximation, so get_historical never caches
+        client = mock_http_client({"eur": {"usd": 1.05}})
+        rate_client = FiatRateClient()
+        with patch("src.rate_providers.fiat.client.httpx.AsyncClient", return_value=client):
+            await rate_client.get_historical(
+                currency_ticker="EUR",
+                base_currency_ticker="USD",
+                rate_at=datetime(2026, 8, 15, tzinfo=timezone.utc),
+            )
+            await rate_client.get_historical(
+                currency_ticker="EUR",
+                base_currency_ticker="USD",
+                rate_at=datetime(2026, 8, 15, tzinfo=timezone.utc),
+            )
+
+        assert client.get.await_count == 2
+
+    async def test_rate_cache_is_not_shared_across_instances(self):
+        client = mock_http_client({"eur": {"usd": 1.08}})
+        with patch("src.rate_providers.fiat.client.httpx.AsyncClient", return_value=client):
+            await FiatRateClient().get_current(currency_ticker="EUR", base_currency_ticker="USD")
+
+        client_2 = mock_http_client({"eur": {"usd": 1.08}})
+        with patch("src.rate_providers.fiat.client.httpx.AsyncClient", return_value=client_2):
+            await FiatRateClient().get_current(currency_ticker="EUR", base_currency_ticker="USD")
+
+        client_2.get.assert_awaited_once()

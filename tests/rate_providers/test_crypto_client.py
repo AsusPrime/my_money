@@ -61,6 +61,34 @@ class TestCryptoRateClient:
         with patch("httpx.AsyncClient", return_value=client):
             assert await CryptoRateClient().ticker_exists(currency_ticker="ZZZ") is False
 
+    async def test_caches_rate_and_does_not_refetch_within_ttl(self):
+        ids_client = mock_http_client([{"id": "bitcoin", "symbol": "btc"}])
+        rate_client_http = mock_http_client({"bitcoin": {"uah": 3249577}})
+        rate_client = CryptoRateClient()
+        with patch("httpx.AsyncClient", side_effect=[ids_client, rate_client_http]):
+            first = await rate_client.get_current(
+                currency_ticker="BTC", base_currency_ticker="UAH"
+            )
+            second = await rate_client.get_current(
+                currency_ticker="BTC", base_currency_ticker="UAH"
+            )
+
+        assert first == second == Decimal("3249577")
+        rate_client_http.get.assert_awaited_once()
+
+    async def test_rate_cache_is_not_shared_across_instances(self):
+        ids_client = mock_http_client([{"id": "bitcoin", "symbol": "btc"}])
+        rate_client_http = mock_http_client({"bitcoin": {"uah": 3249577}})
+        with patch("httpx.AsyncClient", side_effect=[ids_client, rate_client_http]):
+            await CryptoRateClient().get_current(currency_ticker="BTC", base_currency_ticker="UAH")
+
+        ids_client_2 = mock_http_client([{"id": "bitcoin", "symbol": "btc"}])
+        rate_client_http_2 = mock_http_client({"bitcoin": {"uah": 3249577}})
+        with patch("httpx.AsyncClient", side_effect=[ids_client_2, rate_client_http_2]):
+            await CryptoRateClient().get_current(currency_ticker="BTC", base_currency_ticker="UAH")
+
+        rate_client_http_2.get.assert_awaited_once()
+
 
 class TestCryptoRateClientResolveId:
     async def test_resolves_ticker_via_coingecko_markets(self):

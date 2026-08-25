@@ -4,9 +4,11 @@ from decimal import Decimal
 import httpx
 import pycountry
 
+from src.common.constants import RATE_CACHE_TTL_SECONDS
 from src.common.constants import RATE_CLIENT_HTTP_TIMEOUT_SECONDS
 from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
+from src.rate_providers.rate_cache import RateCache
 
 
 class FiatRateClient:
@@ -19,14 +21,23 @@ class FiatRateClient:
         "https://{date}.currency-api.pages.dev/v1/currencies/{currency}.json",
     )
 
+    def __init__(self):
+        self._rate_cache = RateCache(RATE_CACHE_TTL_SECONDS)
+
     async def get_current(
         self, *, currency_ticker: str, base_currency_ticker: str
     ) -> Decimal:
         currency = currency_ticker.lower()
+        base_currency = base_currency_ticker.lower()
+
+        cached = self._rate_cache.get(currency, base_currency)
+        if cached is not None:
+            return cached
+
         urls = [host.format(currency=currency) for host in self.LATEST_HOSTS]
-        return await self._fetch(
-            urls=urls, currency=currency, base_currency=base_currency_ticker.lower()
-        )
+        rate = await self._fetch(urls=urls, currency=currency, base_currency=base_currency)
+        self._rate_cache.set(currency, base_currency, rate)
+        return rate
 
     async def get_historical(
         self, *, currency_ticker: str, base_currency_ticker: str, rate_at: datetime

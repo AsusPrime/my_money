@@ -1,13 +1,20 @@
+from decimal import Decimal
+
 from loguru import logger
 
 from src.core.exceptions.exceptions import AddRecordError, ConflictError
 from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
 from src.entities.account import AccountEntity
+from src.entities.balance import BalanceEntity
 from src.schemas.account import AccountCreateSchema
 from src.schemas.account import AccountListResponseSchema
 from src.schemas.account import AccountResponseSchema
+from src.schemas.account import AccountTotalResponseSchema
 from src.schemas.account import AccountUpdateSchema
+from src.services.currency_conversion import convert_amounts_to_total
+from src.services.currency_service import CurrencyService
+from src.services.exchange_rate_service import ExchangeRateService
 from src.utils.uow.unitofwork import IUnitOfWork
 
 
@@ -72,6 +79,41 @@ class AccountService:
             raise NotFoundError(Messages.ACCOUNT_NOT_FOUND)
 
         return AccountResponseSchema.model_validate(updated_account)
+
+    @staticmethod
+    async def get_account_total(
+        uow: IUnitOfWork,
+        account_id: int,
+        currency_service: CurrencyService = CurrencyService(),
+        exchange_rate_service: ExchangeRateService = ExchangeRateService(),
+    ) -> AccountTotalResponseSchema:
+        account = await uow.accounts.find_one_or_none(id=account_id)
+
+        if account is None:
+            logger.warning(f"Account {account_id} not found")
+            raise NotFoundError(Messages.ACCOUNT_NOT_FOUND)
+
+        base_currency_ticker = account.base_currency_ticker
+        balances = await uow.balances.find_all_unarchived_by_account_id(account_id=account_id)
+
+        combined_amounts: dict[str, Decimal] = {}
+        for balance in balances:
+            balance_entity = BalanceEntity(balance=balance, uow=uow)
+            amounts = await balance_entity.get_amounts()
+            for currency_ticker, amount in amounts.items():
+                combined_amounts[currency_ticker] = (
+                    combined_amounts.get(currency_ticker, Decimal("0")) + amount
+                )
+
+        total = await convert_amounts_to_total(
+            uow=uow,
+            amounts=combined_amounts,
+            base_currency_ticker=base_currency_ticker,
+            currency_service=currency_service,
+            exchange_rate_service=exchange_rate_service,
+        )
+
+        return AccountTotalResponseSchema(total=total, currency_ticker=base_currency_ticker)
 
     @staticmethod
     async def archive_account_by_id(uow: IUnitOfWork, account_id: int) -> None:

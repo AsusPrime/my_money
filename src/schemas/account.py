@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel
 from pydantic import ConfigDict
@@ -28,3 +29,8 @@ class AccountListResponseSchema(BaseModel):
     items: list[AccountResponseSchema]
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AccountTotalResponseSchema(BaseModel):
+    total: Decimal
+    currency_ticker: str

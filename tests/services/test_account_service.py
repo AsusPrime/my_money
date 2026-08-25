@@ -1,3 +1,6 @@
+from decimal import Decimal
+from unittest.mock import AsyncMock
+
 import pytest
 
 from src.core.exceptions.exceptions import AddRecordError
@@ -138,6 +141,90 @@ class TestUpdateAccountById:
             )
 
         assert exc_info.value.message == Messages.ACCOUNT_NOT_FOUND
+
+class TestGetAccountTotal:
+    async def test_sums_base_currency_amounts_across_balances(self, uow):
+        uow.accounts.find_one_or_none.return_value = make_account_row(
+            id=1, base_currency_ticker="UAH"
+        )
+        uow.balances.find_all_unarchived_by_account_id.return_value = [
+            make_balance_row(id=1, account_id=1),
+            make_balance_row(id=2, account_id=1),
+        ]
+        uow.ledgers.get_amounts_by_balance_id.side_effect = [
+            {"UAH": Decimal("100")},
+            {"UAH": Decimal("50")},
+        ]
+
+        result = await AccountService.get_account_total(uow=uow, account_id=1)
+
+        assert result.total == Decimal("150")
+        assert result.currency_ticker == "UAH"
+
+    async def test_resolves_each_distinct_foreign_currency_rate_only_once(self, uow):
+        uow.accounts.find_one_or_none.return_value = make_account_row(
+            id=1, base_currency_ticker="UAH"
+        )
+        uow.balances.find_all_unarchived_by_account_id.return_value = [
+            make_balance_row(id=1, account_id=1),
+            make_balance_row(id=2, account_id=1),
+        ]
+        uow.ledgers.get_amounts_by_balance_id.side_effect = [
+            {"USD": Decimal("10")},
+            {"USD": Decimal("5")},
+        ]
+        uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        exchange_rate_service = AsyncMock()
+        exchange_rate_service.get_current_rate.return_value = Decimal("41")
+
+        result = await AccountService.get_account_total(
+            uow=uow, account_id=1, exchange_rate_service=exchange_rate_service
+        )
+
+        assert result.total == Decimal("615")
+        exchange_rate_service.get_current_rate.assert_awaited_once_with(
+            currency_ticker="USD", base_currency_ticker="UAH", currency_type="fiat"
+        )
+
+    async def test_sums_base_and_foreign_currencies_together(self, uow):
+        uow.accounts.find_one_or_none.return_value = make_account_row(
+            id=1, base_currency_ticker="UAH"
+        )
+        uow.balances.find_all_unarchived_by_account_id.return_value = [
+            make_balance_row(id=1, account_id=1),
+        ]
+        uow.ledgers.get_amounts_by_balance_id.side_effect = [
+            {"UAH": Decimal("100"), "USD": Decimal("10")},
+        ]
+        uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        exchange_rate_service = AsyncMock()
+        exchange_rate_service.get_current_rate.return_value = Decimal("41")
+
+        result = await AccountService.get_account_total(
+            uow=uow, account_id=1, exchange_rate_service=exchange_rate_service
+        )
+
+        assert result.total == Decimal("510")
+
+    async def test_returns_zero_when_no_balances(self, uow):
+        uow.accounts.find_one_or_none.return_value = make_account_row(
+            id=1, base_currency_ticker="UAH"
+        )
+        uow.balances.find_all_unarchived_by_account_id.return_value = []
+
+        result = await AccountService.get_account_total(uow=uow, account_id=1)
+
+        assert result.total == Decimal("0")
+        assert result.currency_ticker == "UAH"
+
+    async def test_raises_not_found_when_missing(self, uow):
+        uow.accounts.find_one_or_none.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            await AccountService.get_account_total(uow=uow, account_id=999)
+
+        assert exc_info.value.message == Messages.ACCOUNT_NOT_FOUND
+
 
 class TestArchiveAccount:
     async def test_archives_account_with_no_balances(self, uow):

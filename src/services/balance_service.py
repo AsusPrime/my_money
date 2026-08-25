@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from loguru import logger
 
 from src.core.exceptions.exceptions import AddRecordError, ConflictError, NotFoundError
@@ -8,6 +6,7 @@ from src.entities.balance import BalanceEntity
 from src.models import Balance
 from src.schemas.balance import BalanceAmountsResponseSchema, BalanceCreateSchema, BalanceListResponseSchema, BalanceResponseSchema, BalanceTotalResponseSchema, BalanceUpdateSchema
 from src.services.account_service import AccountService
+from src.services.currency_conversion import convert_amounts_to_total
 from src.services.currency_service import CurrencyService
 from src.services.exchange_rate_service import ExchangeRateService
 from src.utils.uow.unitofwork import IUnitOfWork
@@ -113,19 +112,13 @@ class BalanceService:
         balance_entity = BalanceEntity(balance=balance, uow=uow)
         amounts = await balance_entity.get_amounts()
 
-        total = Decimal("0")
-        for currency_ticker, amount in amounts.items():
-            if currency_ticker == base_currency_ticker:
-                total += amount
-                continue
-
-            currency = await currency_service.get_currency_by_ticker(uow=uow, ticker=currency_ticker)
-            rate = await exchange_rate_service.get_current_rate(
-                currency_ticker=currency_ticker,
-                base_currency_ticker=base_currency_ticker,
-                currency_type=currency.currency_type,
-            )
-            total += amount * rate
+        total = await convert_amounts_to_total(
+            uow=uow,
+            amounts=amounts,
+            base_currency_ticker=base_currency_ticker,
+            currency_service=currency_service,
+            exchange_rate_service=exchange_rate_service,
+        )
 
         return BalanceTotalResponseSchema(total=total, currency_ticker=base_currency_ticker)
 

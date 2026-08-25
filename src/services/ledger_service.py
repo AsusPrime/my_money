@@ -1,6 +1,7 @@
 from datetime import datetime
 from datetime import timezone
 from uuid import uuid4
+from src.common.constants import DEFAULT_API_LIMIT
 from src.core.exceptions.exceptions import BadRequestError
 from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
@@ -8,6 +9,7 @@ from src.entities.balance import BalanceEntity
 from src.enums.enums import OperationTypeEnum
 from src.schemas.ledger import (
     LedgerListResponseSchema,
+    LedgerPageResponseSchema,
     LedgerResponseSchema,
     LedgerUpdateSchema,
     RecordSingleLegOperationPayload,
@@ -186,12 +188,16 @@ class LedgerService:
 
     @staticmethod
     async def get_operations_by_balance_id(
-        uow: IUnitOfWork, balance_id: int
-    ) -> LedgerListResponseSchema:
-        operations = await uow.ledgers.find_all_by_balance_id(balance_id=balance_id)
+        uow: IUnitOfWork, balance_id: int, limit: int = DEFAULT_API_LIMIT, offset: int = 0
+    ) -> LedgerPageResponseSchema:
+        operations = await uow.ledgers.find_all_by_balance_id(
+            balance_id=balance_id, limit=limit + 1, offset=offset
+        )
+        has_more = len(operations) > limit
 
-        return LedgerListResponseSchema(
-            items=[LedgerResponseSchema.model_validate(o) for o in operations]
+        return LedgerPageResponseSchema(
+            items=[LedgerResponseSchema.model_validate(o) for o in operations[:limit]],
+            has_more=has_more,
         )
 
     @staticmethod

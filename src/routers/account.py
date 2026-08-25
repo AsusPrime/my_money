@@ -7,6 +7,7 @@ from src.utils.dependencies.uow_dep import UOWDep
 from src.schemas.account import AccountCreateSchema
 from src.schemas.account import AccountListResponseSchema
 from src.schemas.account import AccountResponseSchema
+from src.schemas.account import AccountTotalResponseSchema
 from src.schemas.account import AccountUpdateSchema
 
 router = APIRouter(
@@ -33,6 +34,17 @@ async def get_account_api(
     account_id: int, uow: UOWDep, account_service: AccountServiceDep
 ):
     return await account_service.get_account_by_id(uow=uow, account_id=account_id)
+
+
+@router.get(
+    "/{account_id}/total",
+    response_model=AccountTotalResponseSchema,
+    status_code=status.HTTP_200_OK,
+)
+async def get_account_total_api(
+    account_id: int, uow: UOWDep, account_service: AccountServiceDep
+):
+    return await account_service.get_account_total(uow=uow, account_id=account_id)
 
 
 @router.post(

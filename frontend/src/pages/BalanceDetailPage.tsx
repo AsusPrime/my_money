@@ -1,8 +1,8 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAllBalances, useBalance, useBalanceAmounts, useBalanceTotal } from '../api/balances'
-import { useCategories } from '../api/categories'
-import { useCurrencies } from '../api/currencies'
+import { useCategories, useCreateCategory } from '../api/categories'
+import { useCreateCurrency, useCurrencies, type CurrencyType } from '../api/currencies'
 import {
   useBalanceLedger,
   useDeleteOperation,
@@ -250,6 +250,135 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 const fieldClass =
   'w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none'
 
+/* ------------------- free-typed currency & category fields ------------------- */
+// type-to-select the ticker/category or type a new one — if it doesn't exist
+// yet, it's created transparently as part of the same form submit
+
+const inlineFieldClass =
+  'rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none'
+
+function useCurrencyField(initial: string = '') {
+  const [ticker, setTickerRaw] = useState(initial.toUpperCase())
+  const [newType, setNewType] = useState<CurrencyType>('fiat')
+  const { data: currencies } = useCurrencies()
+  const createCurrency = useCreateCurrency()
+
+  const isLoaded = currencies !== undefined
+  const isKnown = !isLoaded || currencies.some((c) => c.ticker === ticker)
+  const isNew = ticker.trim() !== '' && isLoaded && !isKnown
+
+  return {
+    ticker,
+    setTicker: (v: string) => setTickerRaw(v.toUpperCase()),
+    isNew,
+    newType,
+    setNewType,
+    currencies,
+    async resolve(): Promise<string | undefined> {
+      if (!ticker) return undefined
+      if (!isNew) return ticker
+      await createCurrency.mutateAsync({ ticker, currency_type: newType })
+      return ticker
+    },
+  }
+}
+
+function useCategoryField(initialCategoryId?: number | null) {
+  const [name, setName] = useState('')
+  const [resolvedInitial, setResolvedInitial] = useState(false)
+  const { data: categories } = useCategories()
+  const createCategory = useCreateCategory()
+
+  // category_id -> name can only resolve once the category list has loaded
+  useEffect(() => {
+    if (resolvedInitial || !categories) return
+    if (initialCategoryId != null) {
+      const found = categories.find((c) => c.id === initialCategoryId)
+      if (found) setName(found.name)
+    }
+    setResolvedInitial(true)
+  }, [categories, initialCategoryId, resolvedInitial])
+
+  return {
+    name,
+    setName,
+    categories,
+    async resolve(): Promise<number | undefined> {
+      const trimmed = name.trim()
+      if (!trimmed) return undefined
+      const existing = categories?.find((c) => c.name.toLowerCase() === trimmed.toLowerCase())
+      if (existing) return existing.id
+      const created = await createCategory.mutateAsync({ name: trimmed })
+      return created.id
+    },
+  }
+}
+
+function CurrencyField({
+  field,
+  className = fieldClass,
+  placeholder = 'e.g. USD',
+}: {
+  field: ReturnType<typeof useCurrencyField>
+  className?: string
+  placeholder?: string
+}) {
+  const listId = useId()
+  return (
+    <div className="min-w-0">
+      <input
+        list={listId}
+        value={field.ticker}
+        onChange={(e) => field.setTicker(e.target.value)}
+        placeholder={placeholder}
+        className={className}
+      />
+      <datalist id={listId}>
+        {field.currencies?.map((c) => <option key={c.ticker} value={c.ticker} />)}
+      </datalist>
+      {field.isNew && (
+        <div className="mt-1 flex items-center gap-1.5 text-xs text-text-muted">
+          <span>New —</span>
+          <select
+            value={field.newType}
+            onChange={(e) => field.setNewType(e.target.value as CurrencyType)}
+            className="rounded border border-border bg-surface-alt px-1 py-0.5 text-text focus:border-accent focus:outline-none"
+          >
+            <option value="fiat">fiat</option>
+            <option value="crypto">crypto</option>
+            <option value="stock">stock</option>
+          </select>
+          <span>will be added</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CategoryField({
+  field,
+  className = fieldClass,
+}: {
+  field: ReturnType<typeof useCategoryField>
+  className?: string
+}) {
+  const listId = useId()
+  return (
+    <div className="min-w-0">
+      <input
+        list={listId}
+        value={field.name}
+        onChange={(e) => field.setName(e.target.value)}
+        placeholder="Category (optional)"
+        className={className}
+      />
+      <datalist id={listId}>
+        {field.categories?.map((c) => <option key={c.id} value={c.name} />)}
+      </datalist>
+    </div>
+  )
+}
+
 /* ----------------------------- ledger ----------------------------- */
 
 function categoryName(categoryId: number | null, categories: { id: number; name: string }[] | undefined) {
@@ -258,11 +387,33 @@ function categoryName(categoryId: number | null, categories: { id: number; name:
 }
 
 function LedgerHistory({ balanceId }: { balanceId: number }) {
-  const { data: entries, isLoading } = useBalanceLedger(balanceId)
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useBalanceLedger(balanceId)
   const { data: categories } = useCategories()
   const [editingLedgerId, setEditingLedgerId] = useState<number | null>(null)
   const { data: editingGroup } = useOperationGroup(editingLedgerId)
   const deleteOperation = useDeleteOperation()
+  const sentinelRef = useRef<HTMLLIElement | null>(null)
+
+  const entries = data?.pages.flatMap((page) => page.items)
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || !hasNextPage) return
+
+    const observer = new IntersectionObserver((observerEntries) => {
+      if (observerEntries[0].isIntersecting && !isFetchingNextPage) {
+        fetchNextPage()
+      }
+    })
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, entries?.length])
 
   if (isLoading) return <p className="text-text-muted">Loading…</p>
   if (entries && entries.length === 0) {
@@ -348,6 +499,11 @@ function LedgerHistory({ balanceId }: { balanceId: number }) {
           </li>
         )
       })}
+      {hasNextPage && (
+        <li ref={sentinelRef} className="py-2 text-center text-xs text-text-muted">
+          {isFetchingNextPage ? 'Loading more…' : ''}
+        </li>
+      )}
     </ul>
   )
 }
@@ -380,24 +536,20 @@ function EditOperationForm({
   const negativeLeg = primaryLegs.find((l) => Number(l.amount) < 0) ?? mainLeg
   const positiveLeg = primaryLegs.find((l) => Number(l.amount) > 0)
 
-  const { data: currencies } = useCurrencies()
-  const { data: categories } = useCategories()
   const { data: allBalances } = useAllBalances()
   const replaceOperation = useReplaceOperation()
   const otherBalances = allBalances?.filter((b) => b.id !== balanceId) ?? []
 
   const [amount, setAmount] = useState(Math.abs(Number(negativeLeg.amount)).toString())
-  const [currencyTicker, setCurrencyTicker] = useState(negativeLeg.currency_ticker)
+  const currencyField = useCurrencyField(negativeLeg.currency_ticker)
   const [receivedAmount, setReceivedAmount] = useState(
     positiveLeg ? Math.abs(Number(positiveLeg.amount)).toString() : '',
   )
-  const [receivedCurrencyTicker, setReceivedCurrencyTicker] = useState(
-    positiveLeg?.currency_ticker ?? '',
-  )
+  const receivedCurrencyField = useCurrencyField(positiveLeg?.currency_ticker ?? '')
   const [toBalanceId, setToBalanceId] = useState(
     mainType === 'transfer' && positiveLeg ? String(positiveLeg.balance_id) : '',
   )
-  const [categoryId, setCategoryId] = useState(mainLeg.category_id?.toString() ?? '')
+  const categoryField = useCategoryField(mainLeg.category_id)
   const [counterparty, setCounterparty] = useState(
     mainType === 'income' || mainType === 'expense' || mainType === 'fee'
       ? (mainLeg.counterparty ?? '')
@@ -405,14 +557,17 @@ function EditOperationForm({
   )
   const [note, setNote] = useState(mainLeg.note ?? '')
   const [feeAmount, setFeeAmount] = useState(feeLeg ? Math.abs(Number(feeLeg.amount)).toString() : '')
-  const [feeCurrencyTicker, setFeeCurrencyTicker] = useState(feeLeg?.currency_ticker ?? '')
+  const feeCurrencyField = useCurrencyField(feeLeg?.currency_ticker ?? '')
   const [executedAtDate, setExecutedAtDate] = useState(toDateInputValue(mainLeg.executed_at))
   const [executedAtTime, setExecutedAtTime] = useState(toTimeInputValue(mainLeg.executed_at))
   const [baseCurrencyRate, setBaseCurrencyRate] = useState(mainLeg.base_currency_rate ?? '')
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     const executedAtIso = new Date(`${executedAtDate}T${executedAtTime || '00:00'}`).toISOString()
+
+    const currencyTicker = await currencyField.resolve()
+    const categoryId = await categoryField.resolve()
 
     let payload: OperationPayload
     if (mainType === 'income' || mainType === 'expense' || mainType === 'fee') {
@@ -422,7 +577,7 @@ function EditOperationForm({
         balance_id: balanceId,
         amount,
         currency_ticker: currencyTicker,
-        category_id: categoryId ? Number(categoryId) : undefined,
+        category_id: categoryId,
         counterparty: counterparty || undefined,
         note: note || undefined,
         executed_at: executedAtIso,
@@ -430,6 +585,8 @@ function EditOperationForm({
       }
     } else if (mainType === 'transfer') {
       if (!amount || !currencyTicker || !toBalanceId) return
+      const receivedCurrencyTicker = await receivedCurrencyField.resolve()
+      const feeCurrencyTicker = await feeCurrencyField.resolve()
       payload = {
         operation_type: 'transfer',
         from_balance_id: negativeLeg.balance_id,
@@ -437,15 +594,17 @@ function EditOperationForm({
         amount,
         received_amount: receivedAmount || undefined,
         currency_ticker: currencyTicker,
-        received_currency_ticker: receivedCurrencyTicker || undefined,
+        received_currency_ticker: receivedCurrencyTicker,
         note: note || undefined,
         executed_at: executedAtIso,
         base_currency_rate: baseCurrencyRate || undefined,
         fee_amount: feeAmount || undefined,
-        fee_currency_ticker: feeCurrencyTicker || undefined,
+        fee_currency_ticker: feeCurrencyTicker,
       }
     } else {
+      const receivedCurrencyTicker = await receivedCurrencyField.resolve()
       if (!amount || !currencyTicker || !receivedAmount || !receivedCurrencyTicker) return
+      const feeCurrencyTicker = await feeCurrencyField.resolve()
       payload = {
         operation_type: 'trade',
         balance_id: negativeLeg.balance_id,
@@ -457,27 +616,12 @@ function EditOperationForm({
         executed_at: executedAtIso,
         base_currency_rate: baseCurrencyRate || undefined,
         fee_amount: feeAmount || undefined,
-        fee_currency_ticker: feeCurrencyTicker || undefined,
+        fee_currency_ticker: feeCurrencyTicker,
       }
     }
 
     replaceOperation.mutate({ id: ledgerId, payload }, { onSuccess: onDone })
   }
-
-  const currencySelect = (value: string, onChange: (v: string) => void) => (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
-    >
-      <option value="">Currency</option>
-      {currencies?.map((c) => (
-        <option key={c.ticker} value={c.ticker}>
-          {c.ticker}
-        </option>
-      ))}
-    </select>
-  )
 
   return (
     <form
@@ -494,19 +638,8 @@ function EditOperationForm({
             placeholder="Amount"
             className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
-          {currencySelect(currencyTicker, setCurrencyTicker)}
-          <select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
-          >
-            <option value="">Category (optional)</option>
-            {categories?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <CurrencyField field={currencyField} className={inlineFieldClass} />
+          <CategoryField field={categoryField} className={inlineFieldClass} />
           <input
             value={counterparty}
             onChange={(e) => setCounterparty(e.target.value)}
@@ -524,7 +657,7 @@ function EditOperationForm({
             placeholder="Amount sent"
             className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
-          {currencySelect(currencyTicker, setCurrencyTicker)}
+          <CurrencyField field={currencyField} className={inlineFieldClass} />
           <span className="self-center text-text-muted">→</span>
           <input
             value={receivedAmount}
@@ -532,7 +665,7 @@ function EditOperationForm({
             placeholder="Amount received"
             className="w-40 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
-          {currencySelect(receivedCurrencyTicker, setReceivedCurrencyTicker)}
+          <CurrencyField field={receivedCurrencyField} className={inlineFieldClass} />
           <select
             value={toBalanceId}
             onChange={(e) => setToBalanceId(e.target.value)}
@@ -551,7 +684,7 @@ function EditOperationForm({
             placeholder="Fee (optional)"
             className="w-28 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
-          {currencySelect(feeCurrencyTicker, setFeeCurrencyTicker)}
+          <CurrencyField field={feeCurrencyField} className={inlineFieldClass} placeholder="Fee currency" />
         </div>
       )}
 
@@ -563,7 +696,7 @@ function EditOperationForm({
             placeholder="Spend amount"
             className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
-          {currencySelect(currencyTicker, setCurrencyTicker)}
+          <CurrencyField field={currencyField} className={inlineFieldClass} />
           <span className="self-center text-text-muted">→</span>
           <input
             value={receivedAmount}
@@ -571,14 +704,14 @@ function EditOperationForm({
             placeholder="Receive amount"
             className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
-          {currencySelect(receivedCurrencyTicker, setReceivedCurrencyTicker)}
+          <CurrencyField field={receivedCurrencyField} className={inlineFieldClass} />
           <input
             value={feeAmount}
             onChange={(e) => setFeeAmount(e.target.value)}
             placeholder="Fee (optional)"
             className="w-28 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
-          {currencySelect(feeCurrencyTicker, setFeeCurrencyTicker)}
+          <CurrencyField field={feeCurrencyField} className={inlineFieldClass} placeholder="Fee currency" />
         </div>
       )}
 
@@ -630,22 +763,22 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
   const [operationType, setOperationType] = useState<OperationType>('income')
   const [amount, setAmount] = useState('')
   const [receivedAmount, setReceivedAmount] = useState('')
-  const [currencyTicker, setCurrencyTicker] = useState('')
-  const [receivedCurrencyTicker, setReceivedCurrencyTicker] = useState('')
-  const [categoryId, setCategoryId] = useState('')
+  const currencyField = useCurrencyField()
+  const receivedCurrencyField = useCurrencyField()
+  const categoryField = useCategoryField()
   const [counterparty, setCounterparty] = useState('')
   const [note, setNote] = useState('')
   const [toBalanceId, setToBalanceId] = useState('')
   const [spendAmount, setSpendAmount] = useState('')
-  const [spendCurrency, setSpendCurrency] = useState('')
+  const spendCurrencyField = useCurrencyField()
   const [receiveAmount, setReceiveAmount] = useState('')
-  const [receiveCurrency, setReceiveCurrency] = useState('')
+  const receiveCurrencyField = useCurrencyField()
+  const [feeAmount, setFeeAmount] = useState('')
+  const feeCurrencyField = useCurrencyField()
   const [executedAtDate, setExecutedAtDate] = useState('')
   const [executedAtTime, setExecutedAtTime] = useState('')
   const [baseCurrencyRate, setBaseCurrencyRate] = useState('')
 
-  const { data: currencies } = useCurrencies()
-  const { data: categories } = useCategories()
   const { data: allBalances } = useAllBalances()
   const recordOperation = useRecordOperation()
 
@@ -654,19 +787,21 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
   function resetFields() {
     setAmount('')
     setReceivedAmount('')
-    setReceivedCurrencyTicker('')
-    setCategoryId('')
+    receivedCurrencyField.setTicker('')
+    categoryField.setName('')
     setCounterparty('')
     setNote('')
     setToBalanceId('')
     setSpendAmount('')
     setReceiveAmount('')
+    setFeeAmount('')
+    feeCurrencyField.setTicker('')
     setExecutedAtDate('')
     setExecutedAtTime('')
     setBaseCurrencyRate('')
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
 
     let payload: OperationPayload
@@ -677,20 +812,25 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
       : undefined
 
     if (operationType === 'income' || operationType === 'expense' || operationType === 'fee') {
+      const currencyTicker = await currencyField.resolve()
       if (!amount || !currencyTicker) return
+      const categoryId = await categoryField.resolve()
       payload = {
         operation_type: operationType,
         balance_id: balanceId,
         amount,
         currency_ticker: currencyTicker,
-        category_id: categoryId ? Number(categoryId) : undefined,
+        category_id: categoryId,
         counterparty: counterparty || undefined,
         note: note || undefined,
         executed_at: executedAtIso,
         base_currency_rate: baseCurrencyRate || undefined,
       }
     } else if (operationType === 'transfer') {
+      const currencyTicker = await currencyField.resolve()
       if (!amount || !currencyTicker || !toBalanceId) return
+      const receivedCurrencyTicker = await receivedCurrencyField.resolve()
+      const feeCurrencyTicker = await feeCurrencyField.resolve()
       payload = {
         operation_type: 'transfer',
         from_balance_id: balanceId,
@@ -698,20 +838,27 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
         amount,
         received_amount: receivedAmount || undefined,
         currency_ticker: currencyTicker,
-        received_currency_ticker: receivedCurrencyTicker || undefined,
+        received_currency_ticker: receivedCurrencyTicker,
+        fee_amount: feeAmount || undefined,
+        fee_currency_ticker: feeCurrencyTicker,
         note: note || undefined,
         executed_at: executedAtIso,
         base_currency_rate: baseCurrencyRate || undefined,
       }
     } else {
-      if (!spendAmount || !spendCurrency || !receiveAmount || !receiveCurrency) return
+      const spendCurrencyTicker = await spendCurrencyField.resolve()
+      const receiveCurrencyTicker = await receiveCurrencyField.resolve()
+      if (!spendAmount || !spendCurrencyTicker || !receiveAmount || !receiveCurrencyTicker) return
+      const feeCurrencyTicker = await feeCurrencyField.resolve()
       payload = {
         operation_type: 'trade',
         balance_id: balanceId,
         spend_amount: spendAmount,
-        spend_currency_ticker: spendCurrency,
+        spend_currency_ticker: spendCurrencyTicker,
         receive_amount: receiveAmount,
-        receive_currency_ticker: receiveCurrency,
+        receive_currency_ticker: receiveCurrencyTicker,
+        fee_amount: feeAmount || undefined,
+        fee_currency_ticker: feeCurrencyTicker,
         note: note || undefined,
         executed_at: executedAtIso,
         base_currency_rate: baseCurrencyRate || undefined,
@@ -725,17 +872,6 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
       },
     })
   }
-
-  const currencySelect = (value: string, onChange: (v: string) => void) => (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className={fieldClass}>
-      <option value="">Currency</option>
-      {currencies?.map((c) => (
-        <option key={c.ticker} value={c.ticker}>
-          {c.ticker}
-        </option>
-      ))}
-    </select>
-  )
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -767,21 +903,12 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
                 className={fieldClass}
               />
             </Field>
-            <Field label="Currency">{currencySelect(currencyTicker, setCurrencyTicker)}</Field>
+            <Field label="Currency">
+              <CurrencyField field={currencyField} className={fieldClass} />
+            </Field>
           </div>
           <Field label="Category">
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className={fieldClass}
-            >
-              <option value="">Optional…</option>
-              {categories?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <CategoryField field={categoryField} className={fieldClass} />
           </Field>
           <Field label="Counterparty">
             <input
@@ -805,7 +932,9 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
                 className={fieldClass}
               />
             </Field>
-            <Field label="Currency">{currencySelect(currencyTicker, setCurrencyTicker)}</Field>
+            <Field label="Currency">
+              <CurrencyField field={currencyField} className={fieldClass} />
+            </Field>
           </div>
           <div className="flex gap-2">
             <Field label="Amount received (optional)">
@@ -817,7 +946,7 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
               />
             </Field>
             <Field label="Currency">
-              {currencySelect(receivedCurrencyTicker, setReceivedCurrencyTicker)}
+              <CurrencyField field={receivedCurrencyField} className={fieldClass} />
             </Field>
           </div>
           <Field label="To balance">
@@ -834,6 +963,23 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
               ))}
             </select>
           </Field>
+          <div className="flex gap-2">
+            <Field label="Fee (optional)">
+              <input
+                value={feeAmount}
+                onChange={(e) => setFeeAmount(e.target.value)}
+                placeholder="0.00"
+                className={fieldClass}
+              />
+            </Field>
+            <Field label="Fee currency">
+              <CurrencyField
+                field={feeCurrencyField}
+                className={fieldClass}
+                placeholder="Fee currency"
+              />
+            </Field>
+          </div>
           <p className="text-xs text-text-muted">
             Leave "received" currency empty for a same-currency transfer. Pick a different
             currency (e.g. moving UAH into a USDT balance via P2P) — then amount received is
@@ -853,7 +999,9 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
                 className={fieldClass}
               />
             </Field>
-            <Field label="Currency">{currencySelect(spendCurrency, setSpendCurrency)}</Field>
+            <Field label="Currency">
+              <CurrencyField field={spendCurrencyField} className={fieldClass} />
+            </Field>
           </div>
           <div className="flex gap-2">
             <Field label="Receive amount">
@@ -864,7 +1012,26 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
                 className={fieldClass}
               />
             </Field>
-            <Field label="Currency">{currencySelect(receiveCurrency, setReceiveCurrency)}</Field>
+            <Field label="Currency">
+              <CurrencyField field={receiveCurrencyField} className={fieldClass} />
+            </Field>
+          </div>
+          <div className="flex gap-2">
+            <Field label="Fee (optional)">
+              <input
+                value={feeAmount}
+                onChange={(e) => setFeeAmount(e.target.value)}
+                placeholder="0.00"
+                className={fieldClass}
+              />
+            </Field>
+            <Field label="Fee currency">
+              <CurrencyField
+                field={feeCurrencyField}
+                className={fieldClass}
+                placeholder="Fee currency"
+              />
+            </Field>
           </div>
         </>
       )}
@@ -983,8 +1150,8 @@ function RecurringOperationForm({
   )
   const [amountMode, setAmountMode] = useState<AmountMode>(existing?.amount_mode ?? 'fixed')
   const [amountValue, setAmountValue] = useState(existing?.amount_value ?? '')
-  const [currencyTicker, setCurrencyTicker] = useState(existing?.currency_ticker ?? '')
-  const [categoryId, setCategoryId] = useState(existing?.category_id?.toString() ?? '')
+  const currencyField = useCurrencyField(existing?.currency_ticker ?? '')
+  const categoryField = useCategoryField(existing?.category_id ?? null)
   const [counterparty, setCounterparty] = useState(existing?.counterparty ?? '')
   const [note, setNote] = useState(existing?.note ?? '')
   const [interval, setInterval] = useState<RecurrenceInterval>(existing?.interval ?? 'monthly')
@@ -1008,14 +1175,14 @@ function RecurringOperationForm({
   )
   const [isActive, setIsActive] = useState(existing?.is_active ?? true)
 
-  const { data: currencies } = useCurrencies()
-  const { data: categories } = useCategories()
   const createRecurringOperation = useCreateRecurringOperation()
   const updateRecurringOperation = useUpdateRecurringOperation()
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!amountValue || (!existing && !currencyTicker)) return
+    const currencyTicker = existing ? existing.currency_ticker : await currencyField.resolve()
+    if (!amountValue || !currencyTicker) return
+    const categoryId = await categoryField.resolve()
 
     if (existing) {
       // schedule fields are not part of RecurringOperationUpdatePayload —
@@ -1023,7 +1190,7 @@ function RecurringOperationForm({
       const payload: RecurringOperationUpdatePayload = {
         amount_mode: amountMode,
         amount_value: amountValue,
-        category_id: categoryId ? Number(categoryId) : undefined,
+        category_id: categoryId,
         counterparty: counterparty || undefined,
         note: note || undefined,
         is_active: isActive,
@@ -1053,7 +1220,7 @@ function RecurringOperationForm({
         currency_ticker: currencyTicker,
         amount_mode: amountMode,
         amount_value: amountValue,
-        category_id: categoryId ? Number(categoryId) : undefined,
+        category_id: categoryId,
         counterparty: counterparty || undefined,
         note: note || undefined,
         interval,
@@ -1107,32 +1274,8 @@ function RecurringOperationForm({
           placeholder={amountMode === 'fixed' ? 'Amount' : 'Percent (e.g. 2.5)'}
           className="w-36 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
         />
-        {!existing && (
-          <select
-            value={currencyTicker}
-            onChange={(e) => setCurrencyTicker(e.target.value)}
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
-          >
-            <option value="">Currency</option>
-            {currencies?.map((c) => (
-              <option key={c.ticker} value={c.ticker}>
-                {c.ticker}
-              </option>
-            ))}
-          </select>
-        )}
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
-        >
-          <option value="">Category (optional)</option>
-          {categories?.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        {!existing && <CurrencyField field={currencyField} className={inlineFieldClass} />}
+        <CategoryField field={categoryField} className={inlineFieldClass} />
       </div>
 
       <div className="flex flex-wrap gap-2">

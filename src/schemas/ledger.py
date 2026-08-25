@@ -30,6 +30,13 @@ class LedgerListResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class LedgerPageResponseSchema(BaseModel):
+    items: list[LedgerResponseSchema]
+    has_more: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class LedgerUpdateSchema(BaseModel):
     category_id: int | None = None
     counterparty: str | None = None

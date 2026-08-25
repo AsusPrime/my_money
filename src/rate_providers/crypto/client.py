@@ -4,9 +4,11 @@ from decimal import Decimal
 import httpx
 from loguru import logger
 
+from src.common.constants import RATE_CACHE_TTL_SECONDS
 from src.common.constants import RATE_CLIENT_HTTP_TIMEOUT_SECONDS
 from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
+from src.rate_providers.rate_cache import RateCache
 
 
 class CryptoRateClient:
@@ -14,20 +16,27 @@ class CryptoRateClient:
 
     def __init__(self):
         self._id_cache: dict[str, str] = {}
+        self._rate_cache = RateCache(RATE_CACHE_TTL_SECONDS)
 
     async def get_current(
         self, *, currency_ticker: str, base_currency_ticker: str
     ) -> Decimal:
         coingecko_id = await self._resolve_id(currency_ticker)
         vs_currency = base_currency_ticker.lower()
+
+        cached = self._rate_cache.get(coingecko_id, vs_currency)
+        if cached is not None:
+            return cached
+
         async with httpx.AsyncClient(timeout=RATE_CLIENT_HTTP_TIMEOUT_SECONDS) as client:
             response = await client.get(
                 f"{self.BASE_URL}/simple/price",
                 params={"ids": coingecko_id, "vs_currencies": vs_currency},
             )
         response.raise_for_status()
-        rate = response.json()[coingecko_id][vs_currency]
-        return Decimal(str(rate))
+        rate = Decimal(str(response.json()[coingecko_id][vs_currency]))
+        self._rate_cache.set(coingecko_id, vs_currency, rate)
+        return rate
 
     async def get_historical(
         self, *, currency_ticker: str, base_currency_ticker: str, rate_at: datetime

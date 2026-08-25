@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { apiClient } from './client'
 import { getErrorMessage } from './errors'
@@ -66,14 +66,20 @@ export interface LedgerUpdatePayload {
   note?: string
 }
 
+export interface LedgerPage {
+  items: LedgerEntry[]
+  has_more: boolean
+}
+
 const LEDGER_KEY = ['ledger']
 const OPERATION_GROUP_KEY = ['ledger-operation-group']
+const LEDGER_PAGE_SIZE = 30
 
-async function fetchLedgerByBalance(balanceId: number): Promise<LedgerEntry[]> {
-  const { data } = await apiClient.get<{ items: LedgerEntry[] }>(
-    `/balances/${balanceId}/ledgers`,
-  )
-  return data.items
+async function fetchLedgerPage(balanceId: number, offset: number): Promise<LedgerPage> {
+  const { data } = await apiClient.get<LedgerPage>(`/balances/${balanceId}/ledgers`, {
+    params: { limit: LEDGER_PAGE_SIZE, offset },
+  })
+  return data
 }
 
 async function fetchOperationGroup(ledgerId: number): Promise<LedgerEntry[]> {
@@ -103,9 +109,14 @@ async function deleteOperation(id: number): Promise<void> {
 }
 
 export function useBalanceLedger(balanceId: number) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: [...LEDGER_KEY, balanceId],
-    queryFn: () => fetchLedgerByBalance(balanceId),
+    queryFn: ({ pageParam }) => fetchLedgerPage(balanceId, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.has_more
+        ? allPages.reduce((loaded, page) => loaded + page.items.length, 0)
+        : undefined,
   })
 }
 

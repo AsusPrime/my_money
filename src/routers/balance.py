@@ -1,14 +1,16 @@
 from fastapi import APIRouter
+from fastapi import Query
 from fastapi import status
 from loguru import logger
 
+from src.common.constants import DEFAULT_API_LIMIT
 from src.schemas.balance import BalanceAmountsResponseSchema
 from src.schemas.balance import BalanceCreateSchema
 from src.schemas.balance import BalanceListResponseSchema
 from src.schemas.balance import BalanceResponseSchema
 from src.schemas.balance import BalanceTotalResponseSchema
 from src.schemas.balance import BalanceUpdateSchema
-from src.schemas.ledger import LedgerListResponseSchema
+from src.schemas.ledger import LedgerPageResponseSchema
 from src.services.dependencies.balance_dep import BalanceServiceDep
 from src.services.dependencies.ledger_dep import LedgerServiceDep
 from src.utils.dependencies.uow_dep import UOWDep
@@ -45,14 +47,18 @@ async def get_balance_api(
 
 @router.get(
     "/{balance_id}/ledgers",
-    response_model=LedgerListResponseSchema,
+    response_model=LedgerPageResponseSchema,
     status_code=status.HTTP_200_OK,
 )
 async def get_balance_ledger_api(
-    balance_id: int, uow: UOWDep, ledger_service: LedgerServiceDep
+    balance_id: int,
+    uow: UOWDep,
+    ledger_service: LedgerServiceDep,
+    limit: int = Query(default=DEFAULT_API_LIMIT, ge=1, le=DEFAULT_API_LIMIT),
+    offset: int = Query(default=0, ge=0),
 ):
     return await ledger_service.get_operations_by_balance_id(
-        uow=uow, balance_id=balance_id
+        uow=uow, balance_id=balance_id, limit=limit, offset=offset
     )
 
 

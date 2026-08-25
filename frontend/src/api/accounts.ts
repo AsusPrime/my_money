@@ -21,11 +21,21 @@ export interface AccountUpdatePayload {
   base_currency_ticker?: string
 }
 
+export interface AccountTotal {
+  total: string
+  currency_ticker: string
+}
+
 const ACCOUNTS_KEY = ['accounts']
 
 export async function fetchAccounts(): Promise<Account[]> {
   const { data } = await apiClient.get<{ items: Account[] }>('/accounts')
   return data.items
+}
+
+async function fetchAccountTotal(accountId: number): Promise<AccountTotal> {
+  const { data } = await apiClient.get<AccountTotal>(`/accounts/${accountId}/total`)
+  return data
 }
 
 async function createAccount(payload: AccountCreatePayload): Promise<Account> {
@@ -44,6 +54,17 @@ async function archiveAccount(id: number): Promise<void> {
 
 export function useAccounts() {
   return useQuery({ queryKey: ACCOUNTS_KEY, queryFn: fetchAccounts })
+}
+
+export function useAccountTotal(accountId: number | null) {
+  return useQuery({
+    queryKey: [...ACCOUNTS_KEY, accountId, 'total'],
+    queryFn: () => fetchAccountTotal(accountId as number),
+    enabled: accountId !== null,
+    // a rate lookup for an obscure held currency can fail — better to just
+    // hide the converted total than show a stale/wrong number
+    retry: 1,
+  })
 }
 
 export function useCreateAccount() {
