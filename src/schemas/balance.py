@@ -31,3 +31,8 @@ class BalanceListResponseSchema(BaseModel):
 
 class BalanceAmountsResponseSchema(BaseModel):
     amounts: dict[str, Decimal]
+
+
+class BalanceTotalResponseSchema(BaseModel):
+    total: Decimal
+    currency_ticker: str

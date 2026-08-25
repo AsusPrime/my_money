@@ -52,6 +52,21 @@ async function fetchBalanceAmounts(balanceId: number): Promise<Record<string, st
   return data.amounts
 }
 
+async function fetchBalance(balanceId: number): Promise<Balance> {
+  const { data } = await apiClient.get<Balance>(`/balances/${balanceId}`)
+  return data
+}
+
+export interface BalanceTotal {
+  total: string
+  currency_ticker: string
+}
+
+async function fetchBalanceTotal(balanceId: number): Promise<BalanceTotal> {
+  const { data } = await apiClient.get<BalanceTotal>(`/balances/${balanceId}/total`)
+  return data
+}
+
 export function useBalances(accountId: number | null) {
   return useQuery({
     queryKey: [...BALANCES_KEY, accountId],
@@ -68,6 +83,24 @@ export function useBalanceAmounts(balanceId: number) {
   return useQuery({
     queryKey: [...BALANCES_KEY, balanceId, 'amounts'],
     queryFn: () => fetchBalanceAmounts(balanceId),
+  })
+}
+
+export function useBalance(balanceId: number) {
+  return useQuery({
+    queryKey: [...BALANCES_KEY, balanceId],
+    queryFn: () => fetchBalance(balanceId),
+  })
+}
+
+export function useBalanceTotal(balanceId: number) {
+  return useQuery({
+    queryKey: [...BALANCES_KEY, balanceId, 'total'],
+    queryFn: () => fetchBalanceTotal(balanceId),
+    // a rate lookup for an obscure currency can fail — better to just hide
+    // the converted total than show a stale/wrong number, so don't retry
+    // aggressively or let it block the rest of the page
+    retry: 1,
   })
 }
 

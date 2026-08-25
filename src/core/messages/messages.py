@@ -29,6 +29,12 @@ class Messages(str, Enum):
     LEDGER_ENTRY_NOT_FOUND = "Ledger entry not found"
     LEDGER_UPDATE_NO_FIELDS = "No editable fields were given"
     RATE_CLIENT_NOT_FOUND = "No rate client configured for this currency type"
+    RATE_NOT_AVAILABLE_FOR_DATE = (
+        "No exchange rate available for this date — provide base_currency_rate manually"
+    )
+    RATE_CURRENCY_NOT_SUPPORTED = (
+        "This currency is not available from the rate provider — provide base_currency_rate manually"
+    )
     CURRENCY_TICKER_NOT_FOUND = (
         "This ticker does not exist for the given currency type — check the spelling"
     )

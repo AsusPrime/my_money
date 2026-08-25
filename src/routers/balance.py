@@ -6,6 +6,7 @@ from src.schemas.balance import BalanceAmountsResponseSchema
 from src.schemas.balance import BalanceCreateSchema
 from src.schemas.balance import BalanceListResponseSchema
 from src.schemas.balance import BalanceResponseSchema
+from src.schemas.balance import BalanceTotalResponseSchema
 from src.schemas.balance import BalanceUpdateSchema
 from src.schemas.ledger import LedgerListResponseSchema
 from src.services.dependencies.balance_dep import BalanceServiceDep
@@ -64,6 +65,17 @@ async def get_balance_amounts_api(
     balance_id: int, uow: UOWDep, balance_service: BalanceServiceDep
 ):
     return await balance_service.get_balance_amounts(uow=uow, balance_id=balance_id)
+
+
+@router.get(
+    "/{balance_id}/total",
+    response_model=BalanceTotalResponseSchema,
+    status_code=status.HTTP_200_OK,
+)
+async def get_balance_total_api(
+    balance_id: int, uow: UOWDep, balance_service: BalanceServiceDep
+):
+    return await balance_service.get_balance_total(uow=uow, balance_id=balance_id)
 
 
 @router.post(

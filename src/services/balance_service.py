@@ -1,10 +1,15 @@
+from decimal import Decimal
+
 from loguru import logger
 
 from src.core.exceptions.exceptions import AddRecordError, ConflictError, NotFoundError
 from src.core.messages.messages import Messages
 from src.entities.balance import BalanceEntity
 from src.models import Balance
-from src.schemas.balance import BalanceAmountsResponseSchema, BalanceCreateSchema, BalanceListResponseSchema, BalanceResponseSchema, BalanceUpdateSchema
+from src.schemas.balance import BalanceAmountsResponseSchema, BalanceCreateSchema, BalanceListResponseSchema, BalanceResponseSchema, BalanceTotalResponseSchema, BalanceUpdateSchema
+from src.services.account_service import AccountService
+from src.services.currency_service import CurrencyService
+from src.services.exchange_rate_service import ExchangeRateService
 from src.utils.uow.unitofwork import IUnitOfWork
 
 
@@ -87,6 +92,42 @@ class BalanceService:
         amounts = await balance_entity.get_amounts()
 
         return BalanceAmountsResponseSchema(amounts=amounts)
+
+    @staticmethod
+    async def get_balance_total(
+        uow: IUnitOfWork,
+        balance_id: int,
+        account_service: AccountService = AccountService(),
+        currency_service: CurrencyService = CurrencyService(),
+        exchange_rate_service: ExchangeRateService = ExchangeRateService(),
+    ) -> BalanceTotalResponseSchema:
+        balance = await uow.balances.find_one_or_none(id=balance_id)
+
+        if balance is None:
+            logger.warning(f"Balance {balance_id} not found")
+            raise NotFoundError(Messages.BALANCE_NOT_FOUND)
+
+        account = await account_service.get_account_by_id(uow=uow, account_id=balance.account_id)
+        base_currency_ticker = account.base_currency_ticker
+
+        balance_entity = BalanceEntity(balance=balance, uow=uow)
+        amounts = await balance_entity.get_amounts()
+
+        total = Decimal("0")
+        for currency_ticker, amount in amounts.items():
+            if currency_ticker == base_currency_ticker:
+                total += amount
+                continue
+
+            currency = await currency_service.get_currency_by_ticker(uow=uow, ticker=currency_ticker)
+            rate = await exchange_rate_service.get_current_rate(
+                currency_ticker=currency_ticker,
+                base_currency_ticker=base_currency_ticker,
+                currency_type=currency.currency_type,
+            )
+            total += amount * rate
+
+        return BalanceTotalResponseSchema(total=total, currency_ticker=base_currency_ticker)
 
     @staticmethod
     async def get_active_balance_by_id(uow: IUnitOfWork, balance_id: int) -> Balance:

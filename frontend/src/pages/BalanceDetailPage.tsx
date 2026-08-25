@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useAllBalances, useBalanceAmounts } from '../api/balances'
+import { useAllBalances, useBalance, useBalanceAmounts, useBalanceTotal } from '../api/balances'
 import { useCategories } from '../api/categories'
 import { useCurrencies } from '../api/currencies'
 import {
@@ -34,8 +34,232 @@ function amountColor(amount: string) {
   return Number(amount) < 0 ? 'text-negative' : 'text-positive'
 }
 
+/* ----------------------------- icons ----------------------------- */
+
+function IconPlus() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function IconRefresh() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+      <path
+        d="M4 4v5h5M20 20v-5h-5M19.5 9A8 8 0 0 0 5.6 6.1M4.5 15a8 8 0 0 0 13.9 2.9"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function IconClose() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function IconPencil() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5">
+      <path
+        d="M4 20l4-1 11-11-3-3L5 16l-1 4z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5">
+      <path
+        d="M5 7h14M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m-9 0l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function TypeIcon({ type }: { type: string }) {
+  const common = { className: 'h-4 w-4', fill: 'none' as const, viewBox: '0 0 24 24' }
+  switch (type) {
+    case 'income':
+      return (
+        <svg {...common}>
+          <path
+            d="M12 19V5M6 11l6-6 6 6"
+            stroke="currentColor"
+            strokeWidth="2.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
+    case 'expense':
+      return (
+        <svg {...common}>
+          <path
+            d="M12 5v14M6 13l6 6 6-6"
+            stroke="currentColor"
+            strokeWidth="2.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
+    case 'fee':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M9 9h.01M15 15h.01M9 15l6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      )
+    case 'transfer':
+      return (
+        <svg {...common}>
+          <path
+            d="M7 7h11l-3-3m3 3l-3 3M17 17H6l3 3m-3-3l3-3"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
+    case 'trade':
+      return (
+        <svg {...common}>
+          <path
+            d="M4 8h13M13 4l4 4-4 4M20 16H7m4 4l-4-4 4-4"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
+    default:
+      return null
+  }
+}
+
+/* ------------------------- overlay primitives ------------------------- */
+
+function useEscapeKey(active: boolean, onClose: () => void) {
+  useEffect(() => {
+    if (!active) return
+    function handler(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [active, onClose])
+}
+
+function Drawer({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean
+  onClose: () => void
+  title: string
+  children: ReactNode
+}) {
+  useEscapeKey(open, onClose)
+  if (!open) return null
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/60" onClick={onClose} />
+      <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border bg-surface shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h3 className="text-base font-semibold text-text">{title}</h3>
+          <button onClick={onClose} className="text-text-muted hover:text-text">
+            <IconClose />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5">{children}</div>
+      </div>
+    </>
+  )
+}
+
+function Modal({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean
+  onClose: () => void
+  title: string
+  children: ReactNode
+}) {
+  useEscapeKey(open, onClose)
+  if (!open) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h3 className="text-base font-semibold text-text">{title}</h3>
+          <button onClick={onClose} className="text-text-muted hover:text-text">
+            <IconClose />
+          </button>
+        </div>
+        <div className="overflow-y-auto p-5">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+/* ----------------------------- field helper ----------------------------- */
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">
+        {label}
+      </span>
+      {children}
+    </label>
+  )
+}
+
+const fieldClass =
+  'w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none'
+
+/* ----------------------------- ledger ----------------------------- */
+
+function categoryName(categoryId: number | null, categories: { id: number; name: string }[] | undefined) {
+  if (categoryId === null || !categories) return null
+  return categories.find((c) => c.id === categoryId)?.name ?? null
+}
+
 function LedgerHistory({ balanceId }: { balanceId: number }) {
   const { data: entries, isLoading } = useBalanceLedger(balanceId)
+  const { data: categories } = useCategories()
   const [editingLedgerId, setEditingLedgerId] = useState<number | null>(null)
   const { data: editingGroup } = useOperationGroup(editingLedgerId)
   const deleteOperation = useDeleteOperation()
@@ -63,40 +287,61 @@ function LedgerHistory({ balanceId }: { balanceId: number }) {
           )
         }
 
+        const cat = categoryName(entry.category_id, categories)
+        const title = entry.counterparty || cat || entry.operation_type
+        const positive = Number(entry.amount) >= 0
+
         return (
           <li
             key={entry.id}
-            className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3"
+            className="grid grid-cols-[auto_1fr_auto] items-start gap-x-3 rounded-lg border border-border bg-surface p-3"
           >
-            <div>
-              <div className="text-text">
-                {entry.operation_type}
-                {entry.counterparty && (
-                  <span className="text-text-muted"> · {entry.counterparty}</span>
+            <div
+              className={`row-span-2 flex h-8 w-8 items-center justify-center rounded-lg ${
+                positive ? 'bg-positive/15 text-positive' : 'bg-negative/15 text-negative'
+              }`}
+            >
+              <TypeIcon type={entry.operation_type} />
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-2 font-medium text-text">
+                <span className="truncate">{title}</span>
+                {cat && title !== cat && (
+                  <span className="shrink-0 rounded bg-surface-alt px-1.5 py-0.5 text-xs text-text-muted">
+                    {cat}
+                  </span>
                 )}
               </div>
               <div className="text-xs text-text-muted">
                 {new Date(entry.executed_at).toLocaleString()}
-                {entry.note && ` · ${entry.note}`}
               </div>
+              {entry.note && (
+                <div className="truncate text-xs text-text-muted" title={entry.note}>
+                  {entry.note}
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-3">
-              <span className={`font-mono font-semibold ${amountColor(entry.amount)}`}>
-                {Number(entry.amount) > 0 ? '+' : ''}
+
+            <div className="text-right">
+              <div className={`font-mono font-semibold ${amountColor(entry.amount)}`}>
+                {positive ? '+' : ''}
                 {formatAmount(entry.amount)} {entry.currency_ticker}
-              </span>
-              <div className="flex gap-2 text-xs font-medium">
+              </div>
+              <div className="mt-1 flex justify-end gap-1">
                 <button
                   onClick={() => setEditingLedgerId(entry.id)}
-                  className="text-text-muted hover:text-text"
+                  title="Edit"
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-text-muted hover:bg-surface-alt hover:text-text"
                 >
-                  {isEditing ? 'Loading…' : 'Edit'}
+                  {isEditing ? '…' : <IconPencil />}
                 </button>
                 <button
                   onClick={() => deleteOperation.mutate(entry.id)}
-                  className="text-negative hover:opacity-80"
+                  title="Delete"
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-text-muted hover:bg-surface-alt hover:text-negative"
                 >
-                  Delete
+                  <IconTrash />
                 </button>
               </div>
             </div>
@@ -348,13 +593,13 @@ function EditOperationForm({
           type="date"
           value={executedAtDate}
           onChange={(e) => setExecutedAtDate(e.target.value)}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+          className="w-40 rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
         />
         <input
           type="time"
           value={executedAtTime}
           onChange={(e) => setExecutedAtTime(e.target.value)}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+          className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
         />
         <input
           value={baseCurrencyRate}
@@ -381,7 +626,7 @@ function EditOperationForm({
   )
 }
 
-function RecordOperationForm({ balanceId }: { balanceId: number }) {
+function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone: () => void }) {
   const [operationType, setOperationType] = useState<OperationType>('income')
   const [amount, setAmount] = useState('')
   const [receivedAmount, setReceivedAmount] = useState('')
@@ -406,7 +651,7 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
 
   const otherBalances = allBalances?.filter((b) => b.id !== balanceId) ?? []
 
-  function resetAmountFields() {
+  function resetFields() {
     setAmount('')
     setReceivedAmount('')
     setReceivedCurrencyTicker('')
@@ -473,15 +718,16 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
       }
     }
 
-    recordOperation.mutate(payload, { onSuccess: resetAmountFields })
+    recordOperation.mutate(payload, {
+      onSuccess: () => {
+        resetFields()
+        onDone()
+      },
+    })
   }
 
   const currencySelect = (value: string, onChange: (v: string) => void) => (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
-    >
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={fieldClass}>
       <option value="">Currency</option>
       {currencies?.map((c) => (
         <option key={c.ticker} value={c.ticker}>
@@ -492,148 +738,188 @@ function RecordOperationForm({ balanceId }: { balanceId: number }) {
   )
 
   return (
-    <form onSubmit={handleSubmit} className="mb-6 flex flex-col gap-2 rounded-lg border border-border bg-surface p-4">
-      <select
-        value={operationType}
-        onChange={(e) => {
-          setOperationType(e.target.value as OperationType)
-          resetAmountFields()
-        }}
-        className="rounded-lg border border-border bg-surface-alt px-3 py-2 text-text focus:border-accent focus:outline-none"
-      >
-        {OPERATION_TYPES.map((type) => (
-          <option key={type} value={type}>
-            {type}
-          </option>
-        ))}
-      </select>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <Field label="Type">
+        <select
+          value={operationType}
+          onChange={(e) => {
+            setOperationType(e.target.value as OperationType)
+            resetFields()
+          }}
+          className={fieldClass}
+        >
+          {OPERATION_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+      </Field>
 
       {(operationType === 'income' || operationType === 'expense' || operationType === 'fee') && (
-        <div className="flex flex-wrap gap-2">
-          <input
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Amount"
-            className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
-          />
-          {currencySelect(currencyTicker, setCurrencyTicker)}
-          <select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
-          >
-            <option value="">Category (optional)</option>
-            {categories?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <input
-            value={counterparty}
-            onChange={(e) => setCounterparty(e.target.value)}
-            placeholder="Counterparty (optional)"
-            className="flex-1 min-w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
-          />
-        </div>
+        <>
+          <div className="flex gap-2">
+            <Field label="Amount">
+              <input
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className={fieldClass}
+              />
+            </Field>
+            <Field label="Currency">{currencySelect(currencyTicker, setCurrencyTicker)}</Field>
+          </div>
+          <Field label="Category">
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className={fieldClass}
+            >
+              <option value="">Optional…</option>
+              {categories?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Counterparty">
+            <input
+              value={counterparty}
+              onChange={(e) => setCounterparty(e.target.value)}
+              placeholder="Optional"
+              className={fieldClass}
+            />
+          </Field>
+        </>
       )}
 
       {operationType === 'transfer' && (
-        <div className="flex flex-wrap gap-2">
-          <input
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Amount sent"
-            className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
-          />
-          {currencySelect(currencyTicker, setCurrencyTicker)}
-          <span className="self-center text-text-muted">→</span>
-          <input
-            value={receivedAmount}
-            onChange={(e) => setReceivedAmount(e.target.value)}
-            placeholder="Amount received (optional)"
-            className="w-40 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
-          />
-          {currencySelect(receivedCurrencyTicker, setReceivedCurrencyTicker)}
-          <select
-            value={toBalanceId}
-            onChange={(e) => setToBalanceId(e.target.value)}
-            className="flex-1 min-w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
-          >
-            <option value="">To balance…</option>
-            {otherBalances.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-          <p className="w-full text-xs text-text-muted">
+        <>
+          <div className="flex gap-2">
+            <Field label="Amount sent">
+              <input
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className={fieldClass}
+              />
+            </Field>
+            <Field label="Currency">{currencySelect(currencyTicker, setCurrencyTicker)}</Field>
+          </div>
+          <div className="flex gap-2">
+            <Field label="Amount received (optional)">
+              <input
+                value={receivedAmount}
+                onChange={(e) => setReceivedAmount(e.target.value)}
+                placeholder="Same as sent"
+                className={fieldClass}
+              />
+            </Field>
+            <Field label="Currency">
+              {currencySelect(receivedCurrencyTicker, setReceivedCurrencyTicker)}
+            </Field>
+          </div>
+          <Field label="To balance">
+            <select
+              value={toBalanceId}
+              onChange={(e) => setToBalanceId(e.target.value)}
+              className={fieldClass}
+            >
+              <option value="">Select…</option>
+              {otherBalances.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <p className="text-xs text-text-muted">
             Leave "received" currency empty for a same-currency transfer. Pick a different
             currency (e.g. moving UAH into a USDT balance via P2P) — then amount received is
             required.
           </p>
-        </div>
+        </>
       )}
 
       {operationType === 'trade' && (
-        <div className="flex flex-wrap gap-2">
-          <input
-            value={spendAmount}
-            onChange={(e) => setSpendAmount(e.target.value)}
-            placeholder="Spend amount"
-            className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
-          />
-          {currencySelect(spendCurrency, setSpendCurrency)}
-          <span className="self-center text-text-muted">→</span>
-          <input
-            value={receiveAmount}
-            onChange={(e) => setReceiveAmount(e.target.value)}
-            placeholder="Receive amount"
-            className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
-          />
-          {currencySelect(receiveCurrency, setReceiveCurrency)}
-        </div>
+        <>
+          <div className="flex gap-2">
+            <Field label="Spend amount">
+              <input
+                value={spendAmount}
+                onChange={(e) => setSpendAmount(e.target.value)}
+                placeholder="0.00"
+                className={fieldClass}
+              />
+            </Field>
+            <Field label="Currency">{currencySelect(spendCurrency, setSpendCurrency)}</Field>
+          </div>
+          <div className="flex gap-2">
+            <Field label="Receive amount">
+              <input
+                value={receiveAmount}
+                onChange={(e) => setReceiveAmount(e.target.value)}
+                placeholder="0.00"
+                className={fieldClass}
+              />
+            </Field>
+            <Field label="Currency">{currencySelect(receiveCurrency, setReceiveCurrency)}</Field>
+          </div>
+        </>
       )}
 
-      <div className="flex gap-2">
+      <Field label="Note">
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Note (optional)"
-          className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+          placeholder="Optional"
+          className={fieldClass}
         />
-        <input
-          type="date"
-          value={executedAtDate}
-          onChange={(e) => setExecutedAtDate(e.target.value)}
-          title="Date (defaults to now if left empty)"
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
-        />
-        <input
-          type="time"
-          value={executedAtTime}
-          onChange={(e) => setExecutedAtTime(e.target.value)}
-          title="Time (defaults to 00:00 if left empty; ignored without a date)"
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
-        />
+      </Field>
+
+      <div className="flex gap-2">
+        <Field label="Date">
+          <input
+            type="date"
+            value={executedAtDate}
+            onChange={(e) => setExecutedAtDate(e.target.value)}
+            title="Defaults to now if left empty"
+            className={fieldClass}
+          />
+        </Field>
+        <Field label="Time">
+          <input
+            type="time"
+            value={executedAtTime}
+            onChange={(e) => setExecutedAtTime(e.target.value)}
+            title="Defaults to 00:00 if left empty; ignored without a date"
+            className={fieldClass}
+          />
+        </Field>
+      </div>
+
+      <Field label="Rate (optional)">
         <input
           value={baseCurrencyRate}
           onChange={(e) => setBaseCurrencyRate(e.target.value)}
-          placeholder="Rate (optional)"
-          title="Rate to base currency at execution time — auto-filled for foreign-currency income/expense/fee if left empty; set it to override"
-          className="w-28 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+          placeholder="Auto-filled if left empty"
+          className={fieldClass}
         />
-        <button
-          type="submit"
-          disabled={recordOperation.isPending}
-          className="rounded-lg bg-accent px-4 py-2 font-semibold text-black transition-colors hover:bg-accent-hover disabled:opacity-50"
-        >
-          Record
-        </button>
-      </div>
+      </Field>
+
+      <button
+        type="submit"
+        disabled={recordOperation.isPending}
+        className="mt-2 rounded-lg bg-accent px-4 py-2.5 font-semibold text-black transition-colors hover:bg-accent-hover disabled:opacity-50"
+      >
+        Record operation
+      </button>
     </form>
   )
 }
+
+/* --------------------------- recurring operations --------------------------- */
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const MONTH_NAMES = [
@@ -782,6 +1068,7 @@ function RecurringOperationForm({
           setAmountValue('')
           setCounterparty('')
           setNote('')
+          onDone?.()
         },
       })
     }
@@ -792,14 +1079,14 @@ function RecurringOperationForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-3 flex flex-col gap-2 rounded-lg border border-border bg-surface p-4"
+      className="mb-3 flex flex-col gap-2 rounded-lg border border-border bg-surface-alt p-4"
     >
       <div className="flex flex-wrap gap-2">
         {!existing && (
           <select
             value={operationType}
             onChange={(e) => setOperationType(e.target.value as RecurringOperationType)}
-            className="rounded-lg border border-border bg-surface-alt px-3 py-2 text-text focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
           >
             <option value="income">income</option>
             <option value="expense">expense</option>
@@ -873,7 +1160,7 @@ function RecurringOperationForm({
           <select
             value={interval}
             onChange={(e) => setInterval(e.target.value as RecurrenceInterval)}
-            className="rounded-lg border border-border bg-surface-alt px-3 py-2 text-text focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
           >
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
@@ -937,7 +1224,7 @@ function RecurringOperationForm({
             value={time}
             onChange={(e) => setTime(e.target.value)}
             title="Time of day (your local time)"
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
+            className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-accent focus:outline-none"
           />
         </div>
       )}
@@ -975,111 +1262,170 @@ function RecurringOperationForm({
   )
 }
 
-function RecurringOperationsList({ balanceId }: { balanceId: number }) {
+function RecurringOperationsPanel({ balanceId }: { balanceId: number }) {
   const { data: operations, isLoading } = useRecurringOperationsByBalance(balanceId)
   const deleteRecurringOperation = useDeleteRecurringOperation()
   const updateRecurringOperation = useUpdateRecurringOperation()
   const [editingId, setEditingId] = useState<number | null>(null)
-
-  if (isLoading) return <p className="text-text-muted">Loading…</p>
-  if (operations && operations.length === 0) {
-    return <p className="text-text-muted">No recurring operations set up yet.</p>
-  }
+  const [creating, setCreating] = useState(false)
 
   return (
-    <ul className="flex flex-col gap-2">
-      {operations?.map((op) =>
-        editingId === op.id ? (
-          <RecurringOperationForm
-            key={op.id}
-            balanceId={balanceId}
-            existing={op}
-            onDone={() => setEditingId(null)}
-          />
-        ) : (
-          <li
-            key={op.id}
-            className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3"
-          >
-            <div>
-              <div className="text-text">
-                {op.operation_type}
-                {' · '}
-                {op.amount_mode === 'fixed'
-                  ? `${formatAmount(op.amount_value)} ${op.currency_ticker}`
-                  : `${op.amount_value}% of ${op.currency_ticker} balance`}
-                {!op.is_active && <span className="text-text-muted"> · paused</span>}
-              </div>
-              <div className="text-xs text-text-muted">
-                {describeSchedule(op)}
-                {op.last_run_at && ` · last ran ${new Date(op.last_run_at).toLocaleString()}`}
-              </div>
-            </div>
-            <div className="flex gap-2 text-xs font-medium">
-              <button
-                onClick={() => setEditingId(op.id)}
-                className="text-text-muted hover:text-text"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() =>
-                  updateRecurringOperation.mutate({
-                    id: op.id,
-                    payload: { is_active: !op.is_active },
-                  })
-                }
-                className="text-text-muted hover:text-text"
-              >
-                {op.is_active ? 'Pause' : 'Resume'}
-              </button>
-              <button
-                onClick={() => deleteRecurringOperation.mutate(op.id)}
-                className="text-negative hover:opacity-80"
-              >
-                Delete
-              </button>
-            </div>
-          </li>
-        ),
+    <div className="flex flex-col gap-2">
+      {isLoading && <p className="text-text-muted">Loading…</p>}
+      {operations && operations.length === 0 && !creating && (
+        <p className="text-text-muted">No recurring operations set up yet.</p>
       )}
-    </ul>
+
+      <ul className="flex flex-col gap-2">
+        {operations?.map((op) =>
+          editingId === op.id ? (
+            <RecurringOperationForm
+              key={op.id}
+              balanceId={balanceId}
+              existing={op}
+              onDone={() => setEditingId(null)}
+            />
+          ) : (
+            <li
+              key={op.id}
+              className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface-alt p-3"
+            >
+              <div className="min-w-0">
+                <div className="truncate text-text">
+                  {op.operation_type}
+                  {' · '}
+                  {op.amount_mode === 'fixed'
+                    ? `${formatAmount(op.amount_value)} ${op.currency_ticker}`
+                    : `${op.amount_value}% of ${op.currency_ticker} balance`}
+                  {!op.is_active && <span className="text-text-muted"> · paused</span>}
+                </div>
+                <div className="text-xs text-text-muted">
+                  {describeSchedule(op)}
+                  {op.last_run_at && ` · last ran ${new Date(op.last_run_at).toLocaleString()}`}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  onClick={() =>
+                    updateRecurringOperation.mutate({
+                      id: op.id,
+                      payload: { is_active: !op.is_active },
+                    })
+                  }
+                  className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface hover:text-text"
+                >
+                  {op.is_active ? 'Pause' : 'Resume'}
+                </button>
+                <button
+                  onClick={() => setEditingId(op.id)}
+                  title="Edit"
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-text-muted hover:bg-surface hover:text-text"
+                >
+                  <IconPencil />
+                </button>
+                <button
+                  onClick={() => deleteRecurringOperation.mutate(op.id)}
+                  title="Delete"
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-text-muted hover:bg-surface hover:text-negative"
+                >
+                  <IconTrash />
+                </button>
+              </div>
+            </li>
+          ),
+        )}
+      </ul>
+
+      {creating ? (
+        <RecurringOperationForm balanceId={balanceId} onDone={() => setCreating(false)} />
+      ) : (
+        <button
+          onClick={() => setCreating(true)}
+          className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2.5 text-sm font-medium text-text-muted hover:border-accent hover:text-accent"
+        >
+          <IconPlus />
+          New recurring operation
+        </button>
+      )}
+    </div>
   )
 }
+
+/* ----------------------------- page ----------------------------- */
 
 export function BalanceDetailPage() {
   const { balanceId } = useParams<{ balanceId: string }>()
   const id = Number(balanceId)
+  const { data: balance } = useBalance(id)
   const { data: amounts } = useBalanceAmounts(id)
+  const { data: total } = useBalanceTotal(id)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
+
   const amountEntries = Object.entries(amounts ?? {}).filter(([, value]) => Number(value) !== 0)
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto max-w-2xl">
       <Link to="/balances" className="mb-4 inline-block text-sm text-text-muted hover:text-text">
         ← Balances
       </Link>
-      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl font-bold text-text">Balance #{id}</h2>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-sm text-text">
-          {amountEntries.length === 0 ? (
-            <span className="text-text-muted">No activity yet</span>
-          ) : (
-            amountEntries.map(([ticker, value]) => (
-              <span key={ticker}>
-                {formatAmount(value)} <span className="text-text-muted">{ticker}</span>
-              </span>
-            ))
+
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+        <h2 className="text-2xl font-bold text-text">{balance?.name ?? '…'}</h2>
+
+        <div className="text-right">
+          {total && (
+            <>
+              <div className="text-xs uppercase tracking-wide text-text-muted">Total</div>
+              <div className="font-mono text-xl font-bold text-text">
+                {formatAmount(total.total)}{' '}
+                <span className="text-sm text-text-muted">{total.currency_ticker}</span>
+              </div>
+            </>
           )}
+          <div className="mt-1 flex flex-wrap justify-end gap-1.5">
+            {amountEntries.length === 0 ? (
+              <span className="text-xs text-text-muted">No activity yet</span>
+            ) : (
+              amountEntries.map(([ticker, value]) => (
+                <span
+                  key={ticker}
+                  className="rounded-full border border-border bg-surface-alt px-2.5 py-0.5 font-mono text-xs text-text-muted"
+                >
+                  {formatAmount(value)} <span className="text-text">{ticker}</span>
+                </span>
+              ))
+            )}
+          </div>
         </div>
       </div>
-      <RecordOperationForm balanceId={id} />
+
+      <div className="mb-6 flex gap-2">
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 font-semibold text-black transition-colors hover:bg-accent-hover"
+        >
+          <IconPlus />
+          Add operation
+        </button>
+        <button
+          onClick={() => setModalOpen(true)}
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-alt px-4 py-2 font-semibold text-text hover:border-text-muted"
+        >
+          <IconRefresh />
+          Recurring
+        </button>
+      </div>
+
       <LedgerHistory balanceId={id} />
 
-      <h3 className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide text-text-muted">
-        Recurring Operations
-      </h3>
-      <RecurringOperationForm balanceId={id} />
-      <RecurringOperationsList balanceId={id} />
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title="Add operation">
+        <RecordOperationForm balanceId={id} onDone={() => setDrawerOpen(false)} />
+      </Drawer>
+
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Recurring operations">
+        <RecurringOperationsPanel balanceId={id} />
+      </Modal>
     </div>
   )
 }

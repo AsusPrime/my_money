@@ -1,4 +1,5 @@
 from decimal import Decimal
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -9,7 +10,9 @@ from src.core.messages.messages import Messages
 from src.schemas.balance import BalanceCreateSchema
 from src.schemas.balance import BalanceUpdateSchema
 from src.services.balance_service import BalanceService
+from tests.services.conftest import make_account_row
 from tests.services.conftest import make_balance_row
+from tests.services.conftest import make_currency_row
 
 
 class TestGetAllBalancesByAccountId:
@@ -178,5 +181,65 @@ class TestGetBalanceAmounts:
 
         with pytest.raises(NotFoundError) as exc_info:
             await BalanceService.get_balance_amounts(uow=uow, balance_id=999)
+
+        assert exc_info.value.message == Messages.BALANCE_NOT_FOUND
+
+
+class TestGetBalanceTotal:
+    async def test_returns_the_amount_directly_when_only_base_currency_is_held(self, uow):
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1, account_id=1)
+        uow.accounts.find_one_or_none.return_value = make_account_row(
+            id=1, base_currency_ticker="UAH"
+        )
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"UAH": Decimal("500")}
+
+        result = await BalanceService.get_balance_total(uow=uow, balance_id=1)
+
+        assert result.total == Decimal("500")
+        assert result.currency_ticker == "UAH"
+
+    async def test_converts_a_foreign_currency_using_the_current_rate(self, uow):
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1, account_id=1)
+        uow.accounts.find_one_or_none.return_value = make_account_row(
+            id=1, base_currency_ticker="UAH"
+        )
+        uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="EUR")
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"EUR": Decimal("100")}
+        exchange_rate_service = AsyncMock()
+        exchange_rate_service.get_current_rate.return_value = Decimal("45")
+
+        result = await BalanceService.get_balance_total(
+            uow=uow, balance_id=1, exchange_rate_service=exchange_rate_service
+        )
+
+        assert result.total == Decimal("4500")
+        exchange_rate_service.get_current_rate.assert_awaited_once_with(
+            currency_ticker="EUR", base_currency_ticker="UAH", currency_type="fiat"
+        )
+
+    async def test_sums_base_and_foreign_currencies_together(self, uow):
+        uow.balances.find_one_or_none.return_value = make_balance_row(id=1, account_id=1)
+        uow.accounts.find_one_or_none.return_value = make_account_row(
+            id=1, base_currency_ticker="UAH"
+        )
+        uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="USD")
+        uow.ledgers.get_amounts_by_balance_id.return_value = {
+            "UAH": Decimal("100"),
+            "USD": Decimal("10"),
+        }
+        exchange_rate_service = AsyncMock()
+        exchange_rate_service.get_current_rate.return_value = Decimal("41")
+
+        result = await BalanceService.get_balance_total(
+            uow=uow, balance_id=1, exchange_rate_service=exchange_rate_service
+        )
+
+        assert result.total == Decimal("510")
+
+    async def test_raises_not_found_when_missing(self, uow):
+        uow.balances.find_one_or_none.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            await BalanceService.get_balance_total(uow=uow, balance_id=999)
 
         assert exc_info.value.message == Messages.BALANCE_NOT_FOUND
