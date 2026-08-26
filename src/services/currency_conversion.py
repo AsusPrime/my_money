@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from src.common.rounding import round_to_currency_precision
 from src.services.currency_service import CurrencyService
 from src.services.exchange_rate_service import ExchangeRateService
 from src.utils.uow.unitofwork import IUnitOfWork
@@ -26,4 +27,5 @@ async def convert_amounts_to_total(
         )
         total += amount * rate
 
-    return total
+    base_currency = await currency_service.get_currency_by_ticker(uow=uow, ticker=base_currency_ticker)
+    return round_to_currency_precision(total, base_currency.decimal_places)

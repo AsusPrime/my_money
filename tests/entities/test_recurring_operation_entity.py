@@ -10,6 +10,7 @@ from src.enums.enums import AmountModeEnum
 from src.enums.enums import RecurrenceIntervalEnum
 from src.entities.recurring_operation import RecurringOperationEntity
 from src.utils.triggers.triggers import MonthEndOffsetTrigger
+from tests.entities.conftest import make_currency_row
 from tests.entities.conftest import make_recurring_operation_row
 
 
@@ -27,6 +28,9 @@ class TestResolveAmount:
 
     async def test_percent_of_balance_computes_from_current_balance(self, uow):
         uow.ledgers.get_amounts_by_balance_id.return_value = {"USD": Decimal("1000")}
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="USD", decimal_places=2
+        )
         row = make_recurring_operation_row(
             balance_id=1,
             currency_ticker="USD",
@@ -37,11 +41,14 @@ class TestResolveAmount:
 
         result = await entity.resolve_amount()
 
-        assert result == Decimal("25.0")
+        assert result == Decimal("25.00")
         uow.ledgers.get_amounts_by_balance_id.assert_awaited_once_with(balance_id=1)
 
     async def test_percent_of_balance_is_zero_when_currency_has_no_funds(self, uow):
         uow.ledgers.get_amounts_by_balance_id.return_value = {}
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="USD", decimal_places=2
+        )
         row = make_recurring_operation_row(
             currency_ticker="USD",
             amount_mode=AmountModeEnum.PERCENT_OF_BALANCE,
@@ -51,7 +58,43 @@ class TestResolveAmount:
 
         result = await entity.resolve_amount()
 
-        assert result == Decimal("0")
+        assert result == Decimal("0.00")
+
+    async def test_percent_of_balance_rounds_to_the_currency_decimal_places(self, uow):
+        # the exact scenario reported: a 0.01% fee against a balance that
+        # doesn't divide evenly produces a long decimal tail — must round to
+        # what the currency can actually settle (2 places for UAH), not carry
+        # the full 8-decimal ledger precision
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"UAH": Decimal("12199.9")}
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="UAH", decimal_places=2
+        )
+        row = make_recurring_operation_row(
+            currency_ticker="UAH",
+            amount_mode=AmountModeEnum.PERCENT_OF_BALANCE,
+            amount_value=Decimal("0.01"),
+        )
+        entity = RecurringOperationEntity(recurring_operation=row, uow=uow)
+
+        result = await entity.resolve_amount()
+
+        assert result == Decimal("1.22")
+
+    async def test_percent_of_balance_rounds_to_8_places_for_crypto(self, uow):
+        uow.ledgers.get_amounts_by_balance_id.return_value = {"BTC": Decimal("1.123456789")}
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="BTC", currency_type="crypto", decimal_places=8
+        )
+        row = make_recurring_operation_row(
+            currency_ticker="BTC",
+            amount_mode=AmountModeEnum.PERCENT_OF_BALANCE,
+            amount_value=Decimal("1"),
+        )
+        entity = RecurringOperationEntity(recurring_operation=row, uow=uow)
+
+        result = await entity.resolve_amount()
+
+        assert result == Decimal("0.01123457")
 
 
 class TestMarkRan:

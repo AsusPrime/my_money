@@ -155,6 +155,9 @@ class TestGetAccountTotal:
             {"UAH": Decimal("100")},
             {"UAH": Decimal("50")},
         ]
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="UAH", decimal_places=2
+        )
 
         result = await AccountService.get_account_total(uow=uow, account_id=1)
 
@@ -211,6 +214,9 @@ class TestGetAccountTotal:
             id=1, base_currency_ticker="UAH"
         )
         uow.balances.find_all_unarchived_by_account_id.return_value = []
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="UAH", decimal_places=2
+        )
 
         result = await AccountService.get_account_total(uow=uow, account_id=1)
 

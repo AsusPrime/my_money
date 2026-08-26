@@ -9,12 +9,14 @@ export interface Currency {
   ticker: string
   name: string | null
   currency_type: CurrencyType
+  decimal_places: number
 }
 
 export interface CurrencyCreatePayload {
   ticker: string
   currency_type: CurrencyType
   name?: string
+  decimal_places?: number
 }
 
 const CURRENCIES_KEY = ['currencies']

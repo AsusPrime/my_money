@@ -1,3 +1,4 @@
+from src.enums.enums import CurrencyTypeEnum
 from src.enums.enums import OperationTypeEnum
 
 DEFAULT_API_LIMIT = 250  # TODO: make limit smarter and start to use it
@@ -5,6 +6,14 @@ DEFAULT_API_LIMIT = 250  # TODO: make limit smarter and start to use it
 RATE_CLIENT_HTTP_TIMEOUT_SECONDS = 10.0
 
 RATE_CACHE_TTL_SECONDS = 3600.0
+
+DEFAULT_DECIMAL_PLACES_BY_CURRENCY_TYPE: dict[CurrencyTypeEnum, int] = {
+    CurrencyTypeEnum.FIAT: 2,
+    CurrencyTypeEnum.BOND: 8,
+    CurrencyTypeEnum.STOCK: 8,
+    CurrencyTypeEnum.CRYPTO: 8,
+    CurrencyTypeEnum.OTHER: 8,
+}
 
 RECURRING_OPERATION_SUPPORTED_TYPES = {
     OperationTypeEnum.INCOME,

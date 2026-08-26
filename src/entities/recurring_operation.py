@@ -6,6 +6,7 @@ from apscheduler.triggers.cron import CronTrigger
 from loguru import logger
 
 from src.common.constants import MAX_DAYS_IN_MONTH
+from src.common.rounding import round_to_currency_precision
 from src.core.exceptions.exceptions import BadRequestError
 from src.core.messages.messages import Messages
 from src.enums.enums import AmountModeEnum
@@ -28,7 +29,12 @@ class RecurringOperationEntity:
             balance_id=self._recurring_operation.balance_id
         )
         current = amounts.get(self._recurring_operation.currency_ticker, Decimal("0"))
-        return current * (self._recurring_operation.amount_value / Decimal("100"))
+        computed = current * (self._recurring_operation.amount_value / Decimal("100"))
+
+        currency = await self._uow.currencies.find_one_or_none(
+            ticker=self._recurring_operation.currency_ticker
+        )
+        return round_to_currency_precision(computed, currency.decimal_places)
 
     def mark_ran(self, ran_at: datetime) -> None:
         self._recurring_operation.last_run_at = ran_at

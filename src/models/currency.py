@@ -1,4 +1,4 @@
-from sqlalchemy import String
+from sqlalchemy import Integer, String
 from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.orm import mapped_column
 
@@ -20,3 +20,4 @@ class Currency(Base):
     )
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     currency_type: Mapped[CurrencyTypeEnum] = mapped_column(String(50), nullable=False)
+    decimal_places: Mapped[int] = mapped_column(Integer, nullable=False)

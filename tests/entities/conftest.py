@@ -13,11 +13,25 @@ from src.enums.enums import RecurrenceIntervalEnum
 
 @pytest.fixture
 def uow():
-    return SimpleNamespace(ledgers=AsyncMock())
+    return SimpleNamespace(ledgers=AsyncMock(), currencies=AsyncMock())
 
 
 def make_balance_row(id: int = 1, is_archived: bool = False) -> SimpleNamespace:
     return SimpleNamespace(id=id, is_archived=is_archived)
+
+
+def make_currency_row(
+    ticker: str = "USD",
+    name: str | None = "US Dollar",
+    currency_type: str = "fiat",
+    decimal_places: int = 2,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        ticker=ticker,
+        name=name,
+        currency_type=currency_type,
+        decimal_places=decimal_places,
+    )
 
 
 def make_category_row(id: int = 1, name: str = "Salary") -> SimpleNamespace:

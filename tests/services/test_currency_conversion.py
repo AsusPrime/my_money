@@ -7,20 +7,30 @@ from tests.services.conftest import make_currency_row
 
 class TestConvertAmountsToTotal:
     async def test_returns_zero_for_empty_amounts(self, uow):
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="UAH", decimal_places=2
+        )
+
         result = await convert_amounts_to_total(uow=uow, amounts={}, base_currency_ticker="UAH")
 
         assert result == Decimal("0")
 
     async def test_sums_base_currency_amounts_directly(self, uow):
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="UAH", decimal_places=2
+        )
+        exchange_rate_service = AsyncMock()
+
         result = await convert_amounts_to_total(
             uow=uow,
             amounts={"UAH": Decimal("100")},
             base_currency_ticker="UAH",
+            exchange_rate_service=exchange_rate_service,
         )
 
-        # no currency/rate lookup needed — same-as-base amounts pass through
-        assert result == Decimal("100")
-        uow.currencies.find_one_or_none.assert_not_called()
+        # no rate lookup needed — same-as-base amounts pass through unconverted
+        assert result == Decimal("100.00")
+        exchange_rate_service.get_current_rate.assert_not_called()
 
     async def test_converts_a_foreign_currency_using_the_current_rate(self, uow):
         uow.currencies.find_one_or_none.return_value = make_currency_row(ticker="EUR")

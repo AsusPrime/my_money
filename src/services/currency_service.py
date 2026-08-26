@@ -1,6 +1,7 @@
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
 
+from src.common.constants import DEFAULT_DECIMAL_PLACES_BY_CURRENCY_TYPE
 from src.core.exceptions.exceptions import AddRecordError, BadRequestError, ConflictError
 from src.core.exceptions.exceptions import AlreadyExistsError
 from src.core.exceptions.exceptions import NotFoundError
@@ -53,7 +54,14 @@ class CurrencyService:
             logger.warning(f"Ticker {currency_data.ticker} does not exist")
             raise BadRequestError(Messages.CURRENCY_TICKER_NOT_FOUND)
 
-        new_currency = await uow.currencies.add_one(data=currency_data.model_dump())
+        decimal_places = (
+            currency_data.decimal_places
+            if currency_data.decimal_places is not None
+            else DEFAULT_DECIMAL_PLACES_BY_CURRENCY_TYPE[currency_data.currency_type]
+        )
+        new_currency = await uow.currencies.add_one(
+            data={**currency_data.model_dump(), "decimal_places": decimal_places}
+        )
 
         if new_currency is None:
             logger.error(Messages.ERROR_FILLED_TO_ADD_NEW_CURRENCY)

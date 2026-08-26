@@ -113,6 +113,47 @@ class TestCreateCurrency:
         assert exc_info.value.message == Messages.CURRENCY_TICKER_NOT_FOUND
         uow.currencies.add_one.assert_not_called()
 
+    async def test_defaults_decimal_places_by_currency_type(self, uow):
+        uow.currencies.find_one_or_none.return_value = None
+        uow.currencies.add_one.return_value = make_currency_row(ticker="BTC", currency_type="crypto")
+
+        await CurrencyService.create_currency(
+            uow=uow,
+            currency_data=CurrencyCreateSchema(ticker="BTC", currency_type="crypto"),
+        )
+
+        uow.currencies.add_one.assert_awaited_once_with(
+            data={
+                "ticker": "BTC",
+                "name": None,
+                "currency_type": CurrencyTypeEnum.CRYPTO,
+                "decimal_places": 8,
+            }
+        )
+
+    async def test_respects_an_explicit_decimal_places_override(self, uow):
+        uow.currencies.find_one_or_none.return_value = None
+        uow.currencies.add_one.return_value = make_currency_row(ticker="XYZ")
+        exchange_rate_service = AsyncMock()
+        exchange_rate_service.ticker_exists.return_value = True
+
+        await CurrencyService.create_currency(
+            uow=uow,
+            currency_data=CurrencyCreateSchema(
+                ticker="XYZ", currency_type="fiat", decimal_places=3
+            ),
+            exchange_rate_service=exchange_rate_service,
+        )
+
+        uow.currencies.add_one.assert_awaited_once_with(
+            data={
+                "ticker": "XYZ",
+                "name": None,
+                "currency_type": CurrencyTypeEnum.FIAT,
+                "decimal_places": 3,
+            }
+        )
+
     async def test_checks_ticker_exists_before_creating(self, uow):
         uow.currencies.find_one_or_none.return_value = None
         uow.currencies.add_one.return_value = make_currency_row(ticker="EUR", name="Euro")

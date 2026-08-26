@@ -257,9 +257,20 @@ const fieldClass =
 const inlineFieldClass =
   'rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none'
 
+// mirrors the backend's DEFAULT_DECIMAL_PLACES_BY_CURRENCY_TYPE — pre-fills
+// the decimals field when the type changes, but stays user-editable after
+const DEFAULT_DECIMAL_PLACES_BY_TYPE: Record<CurrencyType, number> = {
+  fiat: 2,
+  bond: 2,
+  stock: 2,
+  crypto: 8,
+  other: 2,
+}
+
 function useCurrencyField(initial: string = '') {
   const [ticker, setTickerRaw] = useState(initial.toUpperCase())
-  const [newType, setNewType] = useState<CurrencyType>('fiat')
+  const [newType, setNewTypeRaw] = useState<CurrencyType>('fiat')
+  const [newDecimalPlaces, setNewDecimalPlaces] = useState(DEFAULT_DECIMAL_PLACES_BY_TYPE.fiat)
   const { data: currencies } = useCurrencies()
   const createCurrency = useCreateCurrency()
 
@@ -267,17 +278,28 @@ function useCurrencyField(initial: string = '') {
   const isKnown = !isLoaded || currencies.some((c) => c.ticker === ticker)
   const isNew = ticker.trim() !== '' && isLoaded && !isKnown
 
+  function setNewType(type: CurrencyType) {
+    setNewTypeRaw(type)
+    setNewDecimalPlaces(DEFAULT_DECIMAL_PLACES_BY_TYPE[type])
+  }
+
   return {
     ticker,
     setTicker: (v: string) => setTickerRaw(v.toUpperCase()),
     isNew,
     newType,
     setNewType,
+    newDecimalPlaces,
+    setNewDecimalPlaces,
     currencies,
     async resolve(): Promise<string | undefined> {
       if (!ticker) return undefined
       if (!isNew) return ticker
-      await createCurrency.mutateAsync({ ticker, currency_type: newType })
+      await createCurrency.mutateAsync({
+        ticker,
+        currency_type: newType,
+        decimal_places: newDecimalPlaces,
+      })
       return ticker
     },
   }
@@ -337,7 +359,7 @@ function CurrencyField({
         {field.currencies?.map((c) => <option key={c.ticker} value={c.ticker} />)}
       </datalist>
       {field.isNew && (
-        <div className="mt-1 flex items-center gap-1.5 text-xs text-text-muted">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-text-muted">
           <span>New —</span>
           <select
             value={field.newType}
@@ -348,7 +370,16 @@ function CurrencyField({
             <option value="crypto">crypto</option>
             <option value="stock">stock</option>
           </select>
-          <span>will be added</span>
+          <input
+            type="number"
+            min={0}
+            max={18}
+            value={field.newDecimalPlaces}
+            onChange={(e) => field.setNewDecimalPlaces(Number(e.target.value))}
+            title="Decimal places — how finely amounts in this currency round"
+            className="w-12 rounded border border-border bg-surface-alt px-1 py-0.5 text-text focus:border-accent focus:outline-none"
+          />
+          <span>decimals, will be added</span>
         </div>
       )}
     </div>

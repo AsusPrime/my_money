@@ -15,7 +15,11 @@ pytestmark = pytest.mark.integration
 
 async def _make_account(session, base_currency_ticker: str = "USD") -> int:
     await CurrencyRepository(session).add_one(
-        data={"ticker": base_currency_ticker, "currency_type": CurrencyTypeEnum.FIAT}
+        data={
+            "ticker": base_currency_ticker,
+            "currency_type": CurrencyTypeEnum.FIAT,
+            "decimal_places": 2,
+        }
     )
     account = await AccountRepository(session).add_one(
         data={"name": "Main", "base_currency_ticker": base_currency_ticker}
@@ -32,7 +36,7 @@ class TestGetAmountsByBalanceId:
     async def test_groups_and_sums_by_currency(self, session):
         account_id = await _make_account(session)
         await CurrencyRepository(session).add_one(
-            data={"ticker": "EUR", "currency_type": CurrencyTypeEnum.FIAT}
+            data={"ticker": "EUR", "currency_type": CurrencyTypeEnum.FIAT, "decimal_places": 2}
         )
         balance_id = await _make_balance(session, account_id)
         ledger_repo = LedgerRepository(session)

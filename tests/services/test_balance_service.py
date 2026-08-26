@@ -192,6 +192,9 @@ class TestGetBalanceTotal:
             id=1, base_currency_ticker="UAH"
         )
         uow.ledgers.get_amounts_by_balance_id.return_value = {"UAH": Decimal("500")}
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="UAH", decimal_places=2
+        )
 
         result = await BalanceService.get_balance_total(uow=uow, balance_id=1)
 
