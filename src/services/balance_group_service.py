@@ -1,4 +1,4 @@
-from src.core.exceptions.exceptions import AddRecordError, NotFoundError
+from src.core.exceptions.exceptions import AddRecordError, AlreadyExistsError, NotFoundError
 from src.core.messages.messages import Messages
 from src.schemas.balance_group import BalanceGroupCreateSchema
 from src.schemas.balance_group import BalanceGroupListResponseSchema
@@ -23,6 +23,10 @@ class BalanceGroupService:
     async def create_balance_group(
         uow: IUnitOfWork, group_data: BalanceGroupCreateSchema
     ) -> BalanceGroupResponseSchema:
+        await BalanceGroupService._ensure_name_is_free(
+            uow, account_id=group_data.account_id, name=group_data.name
+        )
+
         new_group = await uow.balance_groups.add_one(data=group_data.model_dump())
 
         if new_group is None:
@@ -34,6 +38,17 @@ class BalanceGroupService:
     async def update_balance_group_by_id(
         uow: IUnitOfWork, group_id: int, group_data: BalanceGroupUpdateSchema
     ) -> BalanceGroupResponseSchema:
+        if group_data.name is not None:
+            existing_group = await uow.balance_groups.find_one_or_none(id=group_id)
+            if existing_group is None:
+                raise NotFoundError(Messages.BALANCE_GROUP_NOT_FOUND)
+            await BalanceGroupService._ensure_name_is_free(
+                uow,
+                account_id=existing_group.account_id,
+                name=group_data.name,
+                exclude_id=group_id,
+            )
+
         updated_group = await uow.balance_groups.edit_one(
             id=group_id, data=group_data.model_dump(exclude_unset=True)
         )
@@ -51,3 +66,15 @@ class BalanceGroupService:
 
         if deleted_group is None:
             raise NotFoundError(Messages.BALANCE_GROUP_NOT_FOUND)
+
+    @staticmethod
+    async def _ensure_name_is_free(
+        uow: IUnitOfWork, *, account_id: int, name: str, exclude_id: int | None = None
+    ) -> None:
+        normalized = name.strip().lower()
+        siblings = await uow.balance_groups.find_all(account_id=account_id)
+        for sibling in siblings:
+            if sibling.id == exclude_id:
+                continue
+            if sibling.name.strip().lower() == normalized:
+                raise AlreadyExistsError(Messages.BALANCE_GROUP_ALREADY_EXISTS)

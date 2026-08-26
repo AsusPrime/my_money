@@ -20,6 +20,7 @@ class Messages(str, Enum):
     BALANCE_INSUFFICIENT_FUNDS = "Balance does not have enough funds in this currency for this operation"
     BALANCE_GROUP_NOT_FOUND = "Balance group not found"
     ERROR_FILLED_TO_ADD_NEW_BALANCE_GROUP = "Error filled to add new balance group"
+    BALANCE_GROUP_ALREADY_EXISTS = "A group with this name already exists for this account"
     OPERATION_TYPE_NOT_FOUND = "Operation type not found"
     TRANSFER_RECEIVED_AMOUNT_REQUIRED = (
         "received_amount must be given explicitly when received_currency_ticker "
