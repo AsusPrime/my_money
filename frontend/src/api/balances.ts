@@ -17,6 +17,10 @@ export interface BalanceCreatePayload {
   account_id: number
 }
 
+export interface BalanceUpdatePayload {
+  name?: string
+}
+
 const BALANCES_KEY = ['balances']
 const ALL_BALANCES_KEY = ['balances', 'all']
 
@@ -38,6 +42,11 @@ async function fetchAllBalances(): Promise<Balance[]> {
 
 async function createBalance(payload: BalanceCreatePayload): Promise<Balance> {
   const { data } = await apiClient.post<Balance>('/balances', payload)
+  return data
+}
+
+async function updateBalance(balanceId: number, payload: BalanceUpdatePayload): Promise<Balance> {
+  const { data } = await apiClient.patch<Balance>(`/balances/${balanceId}`, payload)
   return data
 }
 
@@ -111,6 +120,19 @@ export function useCreateBalance() {
     onSuccess: (balance) => {
       queryClient.invalidateQueries({ queryKey: BALANCES_KEY })
       toast.success(`Balance "${balance.name}" created`)
+    },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+}
+
+export function useUpdateBalance() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: BalanceUpdatePayload }) =>
+      updateBalance(id, payload),
+    onSuccess: (balance) => {
+      queryClient.invalidateQueries({ queryKey: BALANCES_KEY })
+      toast.success(`Balance renamed to "${balance.name}"`)
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   })

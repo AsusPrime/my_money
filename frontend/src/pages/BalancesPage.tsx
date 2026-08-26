@@ -6,6 +6,7 @@ import {
   useBalanceAmounts,
   useBalances,
   useCreateBalance,
+  useUpdateBalance,
   type Balance,
 } from '../api/balances'
 import { formatAmount } from '../lib/format'
@@ -20,20 +21,54 @@ function formatAmounts(amounts: Record<string, string> | undefined) {
 function BalanceRow({ balance }: { balance: Balance }) {
   const { data: amounts } = useBalanceAmounts(balance.id)
   const archiveBalance = useArchiveBalance()
+  const updateBalance = useUpdateBalance()
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(balance.name)
   const summary = formatAmounts(amounts)
+
+  function handleSave() {
+    if (!name.trim() || name === balance.name) {
+      setEditing(false)
+      return
+    }
+    updateBalance.mutate(
+      { id: balance.id, payload: { name: name.trim() } },
+      { onSuccess: () => setEditing(false) },
+    )
+  }
 
   return (
     <li className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3">
-      <Link to={`/balances/${balance.id}`} className="flex-1 text-text hover:text-accent">
-        <div>{balance.name}</div>
-        <div className="text-xs text-text-muted">{summary ?? 'No activity yet'}</div>
-      </Link>
-      <button
-        onClick={() => archiveBalance.mutate(balance.id)}
-        className="text-sm font-medium text-negative hover:text-negative/80"
-      >
-        Archive
-      </button>
+      {editing ? (
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+          className="flex-1 rounded border border-border bg-surface-alt px-2 py-1 text-text focus:border-accent focus:outline-none"
+        />
+      ) : (
+        <Link to={`/balances/${balance.id}`} className="flex-1 text-text hover:text-accent">
+          <div>{balance.name}</div>
+          <div className="text-xs text-text-muted">{summary ?? 'No activity yet'}</div>
+        </Link>
+      )}
+      <div className="flex gap-3 text-sm font-medium">
+        {editing ? (
+          <button onClick={handleSave} className="text-accent hover:text-accent-hover">
+            Save
+          </button>
+        ) : (
+          <button onClick={() => setEditing(true)} className="text-text-muted hover:text-text">
+            Edit
+          </button>
+        )}
+        <button
+          onClick={() => archiveBalance.mutate(balance.id)}
+          className="text-negative hover:text-negative/80"
+        >
+          Archive
+        </button>
+      </div>
     </li>
   )
 }
