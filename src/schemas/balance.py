@@ -8,6 +8,7 @@ class BalanceResponseSchema(BaseModel):
     id: int
     name: str
     account_id: int
+    group_id: int | None
     is_archived: bool
     created_at: datetime
 
@@ -17,10 +18,12 @@ class BalanceResponseSchema(BaseModel):
 class BalanceCreateSchema(BaseModel):
     name: str
     account_id: int
+    group_id: int | None = None
 
 
 class BalanceUpdateSchema(BaseModel):
     name: str | None = None
+    group_id: int | None = None
 
 
 class BalanceListResponseSchema(BaseModel):

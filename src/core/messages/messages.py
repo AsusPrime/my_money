@@ -18,6 +18,8 @@ class Messages(str, Enum):
     ERROR_FILLED_TO_ADD_NEW_BALANCE = "Error filled to add new balance"
     BALANCE_IS_ARCHIVED = "Balance is archived and cannot be used for new operations"
     BALANCE_INSUFFICIENT_FUNDS = "Balance does not have enough funds in this currency for this operation"
+    BALANCE_GROUP_NOT_FOUND = "Balance group not found"
+    ERROR_FILLED_TO_ADD_NEW_BALANCE_GROUP = "Error filled to add new balance group"
     OPERATION_TYPE_NOT_FOUND = "Operation type not found"
     TRANSFER_RECEIVED_AMOUNT_REQUIRED = (
         "received_amount must be given explicitly when received_currency_ticker "

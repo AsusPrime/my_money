@@ -19,6 +19,7 @@ class FakeUnitOfWork(IUnitOfWork):
         self.accounts = AsyncMock()
         self.currencies = AsyncMock()
         self.balances = AsyncMock()
+        self.balance_groups = AsyncMock()
         self.ledgers = AsyncMock()
         self.categories = AsyncMock()
         self.recurring_operations = AsyncMock()
@@ -91,6 +92,7 @@ def make_balance_row(
     id: int = 1,
     name: str = "Cash",
     account_id: int = 1,
+    group_id: int | None = None,
     is_archived: bool = False,
     created_at: datetime | None = None,
 ) -> SimpleNamespace:
@@ -98,9 +100,18 @@ def make_balance_row(
         id=id,
         name=name,
         account_id=account_id,
+        group_id=group_id,
         is_archived=is_archived,
         created_at=created_at or datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
+
+
+def make_balance_group_row(
+    id: int = 1,
+    name: str = "Investments",
+    account_id: int = 1,
+) -> SimpleNamespace:
+    return SimpleNamespace(id=id, name=name, account_id=account_id)
 
 
 _UNSET = object()

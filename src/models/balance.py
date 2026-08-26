@@ -11,6 +11,7 @@ class Balance(Base):
     __tablename__ = "balances"
 
     account = relationship("Account", back_populates="balances")
+    group = relationship("BalanceGroup", back_populates="balances")
     analytics = relationship(
         "Analytic", back_populates="balance", cascade="all, delete-orphan"
     )
@@ -31,6 +32,9 @@ class Balance(Base):
 
     account_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
+    )
+    group_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("balance_groups.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

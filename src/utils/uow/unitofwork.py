@@ -4,6 +4,7 @@ from abc import abstractmethod
 from src.db.database import async_session
 from src.repositories.account import AccountRepository
 from src.repositories.balance import BalanceRepository
+from src.repositories.balance_group import BalanceGroupRepository
 from src.repositories.category import CategoryRepository
 from src.repositories.currency import CurrencyRepository
 from src.repositories.ledger import LedgerRepository
@@ -19,6 +20,7 @@ class IUnitOfWork(ABC):
     accounts: AccountRepository
     currencies: CurrencyRepository
     balances: BalanceRepository
+    balance_groups: BalanceGroupRepository
     ledgers: LedgerRepository
     categories: CategoryRepository
     recurring_operations: RecurringOperationRepository
@@ -58,6 +60,7 @@ class UnitOfWork(IUnitOfWork):
         self.accounts = AccountRepository(self.session)
         self.currencies = CurrencyRepository(self.session)
         self.balances = BalanceRepository(self.session)
+        self.balance_groups = BalanceGroupRepository(self.session)
         self.ledgers = LedgerRepository(self.session)
         self.categories = CategoryRepository(self.session)
         self.recurring_operations = RecurringOperationRepository(self.session)

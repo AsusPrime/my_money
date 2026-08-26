@@ -60,7 +60,9 @@ class TestCreateBalance:
         )
 
         assert result.name == "Cash"
-        uow.balances.add_one.assert_awaited_once_with(data={"name": "Cash", "account_id": 1})
+        uow.balances.add_one.assert_awaited_once_with(
+            data={"name": "Cash", "account_id": 1, "group_id": None}
+        )
 
     async def test_raises_add_record_error_when_insert_fails(self, uow):
         uow.balances.add_one.return_value = None

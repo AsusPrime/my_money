@@ -2,6 +2,7 @@ from .base import Base
 from .base import metadata
 from .account import Account
 from .balance import Balance
+from .balance_group import BalanceGroup
 from .currency import Currency
 from .category import Category
 from .analytic import Analytic
@@ -13,6 +14,7 @@ __all__ = [
     "metadata",
     "Account",
     "Balance",
+    "BalanceGroup",
     "Currency",
     "Category",
     "Analytic",

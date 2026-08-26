@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { apiClient } from './client'
 import { getErrorMessage } from './errors'
@@ -8,6 +8,7 @@ export interface Balance {
   id: number
   name: string
   account_id: number
+  group_id: number | null
   is_archived: boolean
   created_at: string
 }
@@ -15,10 +16,12 @@ export interface Balance {
 export interface BalanceCreatePayload {
   name: string
   account_id: number
+  group_id?: number | null
 }
 
 export interface BalanceUpdatePayload {
   name?: string
+  group_id?: number | null
 }
 
 const BALANCES_KEY = ['balances']
@@ -113,6 +116,33 @@ export function useBalanceTotal(balanceId: number) {
   })
 }
 
+export function useBalancesTotalSum(balanceIds: number[]) {
+  const results = useQueries({
+    queries: balanceIds.map((id) => ({
+      queryKey: [...BALANCES_KEY, id, 'total'],
+      queryFn: () => fetchBalanceTotal(id),
+      retry: 1,
+    })),
+  })
+
+  const isLoading = results.some((r) => r.isLoading)
+  // if any balance's rate lookup fails, hide the subtotal rather than show a
+  // number that's silently missing part of the group
+  const hasError = results.some((r) => r.isError)
+  const allLoaded = results.every((r) => r.data !== undefined)
+
+  if (balanceIds.length === 0) {
+    return { total: null, currencyTicker: null, isLoading: false }
+  }
+  if (isLoading || hasError || !allLoaded) {
+    return { total: null, currencyTicker: null, isLoading }
+  }
+
+  const total = results.reduce((sum, r) => sum + Number(r.data!.total), 0)
+  const currencyTicker = results[0].data!.currency_ticker
+  return { total, currencyTicker, isLoading: false }
+}
+
 export function useCreateBalance() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -130,9 +160,9 @@ export function useUpdateBalance() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: BalanceUpdatePayload }) =>
       updateBalance(id, payload),
-    onSuccess: (balance) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BALANCES_KEY })
-      toast.success(`Balance renamed to "${balance.name}"`)
+      toast.success('Balance updated')
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   })

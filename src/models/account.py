@@ -13,6 +13,9 @@ class Account(Base):
     balances = relationship(
         "Balance", back_populates="account", cascade="all, delete-orphan"
     )
+    balance_groups = relationship(
+        "BalanceGroup", back_populates="account", cascade="all, delete-orphan"
+    )
     analytics = relationship(
         "Analytic", back_populates="account", cascade="all, delete-orphan"
     )
