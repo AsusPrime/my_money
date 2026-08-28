@@ -43,6 +43,15 @@ class LedgerUpdateSchema(BaseModel):
     note: str | None = None
 
 
+class LedgerReportItemSchema(BaseModel):
+    group: str | None
+    value: Decimal
+
+
+class LedgerReportResponseSchema(BaseModel):
+    items: list[LedgerReportItemSchema]
+
+
 class _FeeLegMixin(BaseModel):
     note: str | None = None
     fee_amount: Decimal | None = None

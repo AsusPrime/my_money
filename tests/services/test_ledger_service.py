@@ -11,6 +11,8 @@ from src.core.exceptions.exceptions import BadRequestError
 from src.core.exceptions.exceptions import ConflictError
 from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
+from src.enums.enums import LedgerReportGroupByEnum
+from src.enums.enums import LedgerReportMetricEnum
 from src.enums.enums import OperationTypeEnum
 from src.schemas.ledger import LedgerUpdateSchema
 from src.schemas.ledger import RecordSingleLegOperationPayload
@@ -1276,6 +1278,92 @@ class TestReplaceOperation:
         assert exc_info.value.message == Messages.LEDGER_ENTRY_NOT_FOUND
         uow.ledgers.add_one.assert_not_called()
         uow.ledgers.delete_one.assert_not_called()
+
+
+class TestGetReport:
+    async def test_formats_plain_string_groups_as_is(self, uow):
+        uow.ledgers.aggregate.return_value = [
+            ("Salary", Decimal("1000")),
+            ("Food", Decimal("-30")),
+        ]
+
+        result = await LedgerService.get_report(
+            uow=uow,
+            group_by=LedgerReportGroupByEnum.CATEGORY,
+            metric=LedgerReportMetricEnum.SUM,
+        )
+
+        assert [(i.group, i.value) for i in result.items] == [
+            ("Salary", Decimal("1000")),
+            ("Food", Decimal("-30")),
+        ]
+
+    async def test_formats_a_datetime_group_as_an_iso_date(self, uow):
+        uow.ledgers.aggregate.return_value = [
+            (datetime(2026, 1, 1, tzinfo=timezone.utc), Decimal("150")),
+        ]
+
+        result = await LedgerService.get_report(
+            uow=uow,
+            group_by=LedgerReportGroupByEnum.MONTH,
+            metric=LedgerReportMetricEnum.SUM,
+        )
+
+        assert result.items[0].group == "2026-01-01"
+
+    async def test_formats_an_enum_group_by_its_value(self, uow):
+        uow.ledgers.aggregate.return_value = [
+            (OperationTypeEnum.EXPENSE, Decimal("-40")),
+        ]
+
+        result = await LedgerService.get_report(
+            uow=uow,
+            group_by=LedgerReportGroupByEnum.OPERATION_TYPE,
+            metric=LedgerReportMetricEnum.SUM,
+        )
+
+        assert result.items[0].group == "expense"
+
+    async def test_treats_a_none_value_as_zero(self, uow):
+        uow.ledgers.aggregate.return_value = [("Empty", None)]
+
+        result = await LedgerService.get_report(
+            uow=uow,
+            group_by=LedgerReportGroupByEnum.CATEGORY,
+            metric=LedgerReportMetricEnum.SUM,
+        )
+
+        assert result.items[0].value == Decimal("0")
+
+    async def test_passes_filters_through_to_the_repository(self, uow):
+        uow.ledgers.aggregate.return_value = []
+        date_start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime(2026, 2, 1, tzinfo=timezone.utc)
+
+        await LedgerService.get_report(
+            uow=uow,
+            group_by=LedgerReportGroupByEnum.CURRENCY_TICKER,
+            metric=LedgerReportMetricEnum.NET_OF_FEES,
+            date_start=date_start,
+            date_end=date_end,
+            operation_type=OperationTypeEnum.EXPENSE,
+            currency_ticker="USD",
+            category_id=1,
+            balance_id=2,
+            account_id=3,
+        )
+
+        uow.ledgers.aggregate.assert_awaited_once_with(
+            group_by=LedgerReportGroupByEnum.CURRENCY_TICKER,
+            metric=LedgerReportMetricEnum.NET_OF_FEES,
+            date_start=date_start,
+            date_end=date_end,
+            operation_type=OperationTypeEnum.EXPENSE,
+            currency_ticker="USD",
+            category_id=1,
+            balance_id=2,
+            account_id=3,
+        )
 
 
 class TestGetOperationsByBalanceId:

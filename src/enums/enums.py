@@ -38,3 +38,24 @@ class RecurrenceIntervalEnum(str, Enum):
     WEEKLY = "weekly"
     MONTHLY = "monthly"
     YEARLY = "yearly"
+
+
+class LedgerReportGroupByEnum(str, Enum):
+    CATEGORY = "category"
+    COUNTERPARTY = "counterparty"
+    OPERATION_TYPE = "operation_type"
+    CURRENCY_TICKER = "currency_ticker"
+    BALANCE = "balance"
+    ACCOUNT = "account"
+    # time buckets — values match Postgres date_trunc() units exactly
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    QUARTER = "quarter"
+    YEAR = "year"
+
+
+class LedgerReportMetricEnum(str, Enum):
+    SUM = "sum"
+    COUNT = "count"
+    NET_OF_FEES = "net_of_fees"

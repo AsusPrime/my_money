@@ -1,15 +1,18 @@
 from datetime import datetime
 from datetime import timezone
+from decimal import Decimal
 from uuid import uuid4
 from src.common.constants import DEFAULT_API_LIMIT
 from src.core.exceptions.exceptions import BadRequestError
 from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
 from src.entities.balance import BalanceEntity
-from src.enums.enums import OperationTypeEnum
+from src.enums.enums import LedgerReportGroupByEnum, LedgerReportMetricEnum, OperationTypeEnum
 from src.schemas.ledger import (
     LedgerListResponseSchema,
     LedgerPageResponseSchema,
+    LedgerReportItemSchema,
+    LedgerReportResponseSchema,
     LedgerResponseSchema,
     LedgerUpdateSchema,
     RecordSingleLegOperationPayload,
@@ -331,3 +334,48 @@ class LedgerService:
             response.items.append(fee_ledger)
 
         return response
+
+    @staticmethod
+    async def get_report(
+        uow: IUnitOfWork,
+        group_by: LedgerReportGroupByEnum,
+        metric: LedgerReportMetricEnum,
+        date_start: datetime | None = None,
+        date_end: datetime | None = None,
+        operation_type: OperationTypeEnum | None = None,
+        currency_ticker: str | None = None,
+        category_id: int | None = None,
+        balance_id: int | None = None,
+        account_id: int | None = None,
+    ) -> LedgerReportResponseSchema:
+        rows = await uow.ledgers.aggregate(
+            group_by=group_by,
+            metric=metric,
+            date_start=date_start,
+            date_end=date_end,
+            operation_type=operation_type,
+            currency_ticker=currency_ticker,
+            category_id=category_id,
+            balance_id=balance_id,
+            account_id=account_id,
+        )
+
+        return LedgerReportResponseSchema(
+            items=[
+                LedgerReportItemSchema(
+                    group=LedgerService._format_report_group(group_key),
+                    value=Decimal(value) if value is not None else Decimal("0"),
+                )
+                for group_key, value in rows
+            ]
+        )
+
+    @staticmethod
+    def _format_report_group(group_key) -> str | None:
+        if group_key is None:
+            return None
+        if isinstance(group_key, datetime):
+            return group_key.date().isoformat()
+        if hasattr(group_key, "value"):  # enum member, e.g. OperationTypeEnum
+            return group_key.value
+        return str(group_key)

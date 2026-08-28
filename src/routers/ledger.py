@@ -1,8 +1,12 @@
+from datetime import datetime
+
 from fastapi import APIRouter
 from fastapi import status
 from loguru import logger
 
+from src.enums.enums import LedgerReportGroupByEnum, LedgerReportMetricEnum, OperationTypeEnum
 from src.schemas.ledger import LedgerListResponseSchema, RecordSingleLegOperationPayload, RecordTradePayload, RecordTransferPayload
+from src.schemas.ledger import LedgerReportResponseSchema
 from src.schemas.ledger import LedgerResponseSchema
 from src.schemas.ledger import LedgerUpdateSchema
 from src.services.dependencies.ledger_dep import LedgerServiceDep
@@ -12,6 +16,38 @@ router = APIRouter(
     prefix="/ledger",
     tags=["Ledger"],
 )
+
+
+@router.get(
+    "/report",
+    response_model=LedgerReportResponseSchema,
+    status_code=status.HTTP_200_OK,
+)
+async def get_ledger_report_api(
+    uow: UOWDep,
+    ledger_service: LedgerServiceDep,
+    group_by: LedgerReportGroupByEnum,
+    metric: LedgerReportMetricEnum,
+    date_start: datetime | None = None,
+    date_end: datetime | None = None,
+    operation_type: OperationTypeEnum | None = None,
+    currency_ticker: str | None = None,
+    category_id: int | None = None,
+    balance_id: int | None = None,
+    account_id: int | None = None,
+):
+    return await ledger_service.get_report(
+        uow=uow,
+        group_by=group_by,
+        metric=metric,
+        date_start=date_start,
+        date_end=date_end,
+        operation_type=operation_type,
+        currency_ticker=currency_ticker,
+        category_id=category_id,
+        balance_id=balance_id,
+        account_id=account_id,
+    )
 
 
 @router.post(
