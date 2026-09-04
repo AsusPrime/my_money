@@ -3,6 +3,7 @@ from abc import abstractmethod
 
 from src.db.database import async_session
 from src.repositories.account import AccountRepository
+from src.repositories.analytics_widget import AnalyticsWidgetRepository
 from src.repositories.balance import BalanceRepository
 from src.repositories.balance_group import BalanceGroupRepository
 from src.repositories.category import CategoryRepository
@@ -24,6 +25,7 @@ class IUnitOfWork(ABC):
     ledgers: LedgerRepository
     categories: CategoryRepository
     recurring_operations: RecurringOperationRepository
+    analytics_widgets: AnalyticsWidgetRepository
 
     @abstractmethod
     def __init__(self):
@@ -64,6 +66,7 @@ class UnitOfWork(IUnitOfWork):
         self.ledgers = LedgerRepository(self.session)
         self.categories = CategoryRepository(self.session)
         self.recurring_operations = RecurringOperationRepository(self.session)
+        self.analytics_widgets = AnalyticsWidgetRepository(self.session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

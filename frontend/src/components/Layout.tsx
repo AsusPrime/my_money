@@ -4,7 +4,7 @@ const NAV_ITEMS = [
   { to: '/accounts', label: 'Accounts' },
   { to: '/balances', label: 'Balances' },
   { to: '/categories', label: 'Categories' },
-  { to: '/reports', label: 'Reports' },
+  { to: '/analytics', label: 'Analytics' },
 ]
 
 function navLinkClass({ isActive }: { isActive: boolean }) {

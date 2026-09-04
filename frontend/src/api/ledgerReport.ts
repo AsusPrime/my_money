@@ -16,7 +16,17 @@ export const LEDGER_REPORT_GROUP_BY_OPTIONS = [
 ] as const
 export type LedgerReportGroupBy = (typeof LEDGER_REPORT_GROUP_BY_OPTIONS)[number]
 
-export const LEDGER_REPORT_METRIC_OPTIONS = ['sum', 'count', 'net_of_fees'] as const
+export const NET_WORTH_BUCKET_OPTIONS = ['day', 'week', 'month', 'quarter', 'year'] as const
+export type NetWorthBucket = (typeof NET_WORTH_BUCKET_OPTIONS)[number]
+
+export const LEDGER_REPORT_METRIC_OPTIONS = [
+  'sum',
+  'count',
+  'net_of_fees',
+  // not sent to /ledger/report — a widget with this metric is rendered via
+  // useNetWorthReport (/ledger/net-worth) instead, see AnalyticsPage
+  'net_worth',
+] as const
 export type LedgerReportMetric = (typeof LEDGER_REPORT_METRIC_OPTIONS)[number]
 
 export interface LedgerReportItem {
@@ -26,14 +36,23 @@ export interface LedgerReportItem {
 
 export interface LedgerReportParams {
   group_by: LedgerReportGroupBy
-  metric: LedgerReportMetric
+  metric: Exclude<LedgerReportMetric, 'net_worth'>
   date_start?: string
   date_end?: string
-  operation_type?: string
+  operation_types?: string[]
   currency_ticker?: string
-  category_id?: number
-  balance_id?: number
+  category_ids?: number[]
+  balance_ids?: number[]
   account_id?: number
+}
+
+export interface NetWorthParams {
+  currency_ticker: string
+  group_by: NetWorthBucket
+  date_start?: string
+  date_end?: string
+  account_id?: number
+  balance_ids?: number[]
 }
 
 async function fetchLedgerReport(params: LedgerReportParams): Promise<LedgerReportItem[]> {
@@ -43,9 +62,25 @@ async function fetchLedgerReport(params: LedgerReportParams): Promise<LedgerRepo
   return data.items
 }
 
-export function useLedgerReport(params: LedgerReportParams) {
+export function useLedgerReport(params: LedgerReportParams, enabled = true) {
   return useQuery({
     queryKey: ['ledger-report', params],
     queryFn: () => fetchLedgerReport(params),
+    enabled,
+  })
+}
+
+async function fetchNetWorth(params: NetWorthParams): Promise<LedgerReportItem[]> {
+  const { data } = await apiClient.get<{ items: LedgerReportItem[] }>('/ledger/net-worth', {
+    params,
+  })
+  return data.items
+}
+
+export function useNetWorthReport(params: NetWorthParams, enabled = true) {
+  return useQuery({
+    queryKey: ['net-worth', params],
+    queryFn: () => fetchNetWorth(params),
+    enabled: enabled && Boolean(params.currency_ticker),
   })
 }

@@ -1,10 +1,10 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { AccountsPage } from './pages/AccountsPage'
+import { AnalyticsPage } from './pages/AnalyticsPage'
 import { BalanceDetailPage } from './pages/BalanceDetailPage'
 import { BalancesPage } from './pages/BalancesPage'
 import { CategoriesPage } from './pages/CategoriesPage'
-import { ReportsPage } from './pages/ReportsPage'
 
 function App() {
   return (
@@ -15,7 +15,7 @@ function App() {
         <Route path="/balances" element={<BalancesPage />} />
         <Route path="/balances/:balanceId" element={<BalanceDetailPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
       </Route>
     </Routes>
   )

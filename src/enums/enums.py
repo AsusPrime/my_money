@@ -59,3 +59,35 @@ class LedgerReportMetricEnum(str, Enum):
     SUM = "sum"
     COUNT = "count"
     NET_OF_FEES = "net_of_fees"
+
+
+class AnalyticsWidgetMetricEnum(str, Enum):
+    SUM = "sum"
+    COUNT = "count"
+    NET_OF_FEES = "net_of_fees"
+    NET_WORTH = "net_worth"
+
+
+class ChartTypeEnum(str, Enum):
+    BAR = "bar"
+    PIE = "pie"
+    LINE = "line"
+    CALENDAR = "calendar"
+
+
+class DateRangePresetEnum(str, Enum):
+    ALL = "all"
+    THIS_MONTH = "this_month"
+    LAST_MONTH = "last_month"
+    LAST_7_DAYS = "last_7_days"
+    LAST_30_DAYS = "last_30_days"
+    THIS_YEAR = "this_year"
+    CUSTOM = "custom"
+
+
+class NetWorthBucketEnum(str, Enum):
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    QUARTER = "quarter"
+    YEAR = "year"

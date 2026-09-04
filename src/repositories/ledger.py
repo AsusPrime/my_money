@@ -29,6 +29,70 @@ class LedgerRepository(SQLAlchemyRepository):
         res = await self.session.execute(stmt)
         return dict(res.all())
 
+    async def get_earliest_executed_at(
+        self,
+        *,
+        account_id: int | None = None,
+        balance_ids: list[int] | None = None,
+    ) -> datetime | None:
+        stmt = select(func.min(self.model.executed_at))
+        needs_balance_join = not balance_ids
+        if needs_balance_join:
+            stmt = stmt.join(Balance, Balance.id == self.model.balance_id)
+
+        filters = []
+        if account_id is not None:
+            filters.append(Balance.account_id == account_id)
+        if balance_ids:
+            filters.append(self.model.balance_id.in_(balance_ids))
+        else:
+            filters.append(Balance.is_archived.is_(False))
+        if filters:
+            stmt = stmt.where(*filters)
+
+        res = await self.session.execute(stmt)
+        return res.scalar_one_or_none()
+
+    async def get_rows_for_net_worth(
+        self,
+        *,
+        date_start: datetime | None = None,
+        date_end: datetime | None = None,
+        account_id: int | None = None,
+        balance_ids: list[int] | None = None,
+    ) -> list[tuple[datetime, str, Decimal, Decimal | None, str]]:
+        model = self.model
+        stmt = (
+            select(
+                model.executed_at,
+                model.currency_ticker,
+                model.amount,
+                model.base_currency_rate,
+                Account.base_currency_ticker,
+            )
+            .join(Balance, Balance.id == model.balance_id)
+            .join(Account, Account.id == Balance.account_id)
+        )
+
+        filters = []
+        if date_start is not None:
+            filters.append(model.executed_at >= date_start)
+        if date_end is not None:
+            filters.append(model.executed_at <= date_end)
+        if account_id is not None:
+            filters.append(Balance.account_id == account_id)
+        if balance_ids:
+            filters.append(model.balance_id.in_(balance_ids))
+        else:
+            filters.append(Balance.is_archived.is_(False))
+        if filters:
+            stmt = stmt.where(*filters)
+
+        stmt = stmt.order_by(model.executed_at)
+
+        res = await self.session.execute(stmt)
+        return res.all()
+
     async def find_all_by_balance_id(self, balance_id: int, limit: int, offset: int = 0):
         stmt = (
             select(self.model)
@@ -48,10 +112,10 @@ class LedgerRepository(SQLAlchemyRepository):
         metric: LedgerReportMetricEnum,
         date_start: datetime | None = None,
         date_end: datetime | None = None,
-        operation_type: OperationTypeEnum | None = None,
+        operation_types: list[OperationTypeEnum] | None = None,
         currency_ticker: str | None = None,
-        category_id: int | None = None,
-        balance_id: int | None = None,
+        category_ids: list[int] | None = None,
+        balance_ids: list[int] | None = None,
         account_id: int | None = None,
     ) -> list[tuple]:
         model = self.model
@@ -99,14 +163,14 @@ class LedgerRepository(SQLAlchemyRepository):
             filters.append(model.executed_at >= date_start)
         if date_end is not None:
             filters.append(model.executed_at <= date_end)
-        if operation_type is not None:
-            filters.append(model.operation_type == operation_type)
+        if operation_types:
+            filters.append(model.operation_type.in_(operation_types))
         if currency_ticker is not None:
             filters.append(model.currency_ticker == currency_ticker)
-        if category_id is not None:
-            filters.append(model.category_id == category_id)
-        if balance_id is not None:
-            filters.append(model.balance_id == balance_id)
+        if category_ids:
+            filters.append(model.category_id.in_(category_ids))
+        if balance_ids:
+            filters.append(model.balance_id.in_(balance_ids))
         if account_id is not None:
             filters.append(Account.id == account_id)
 

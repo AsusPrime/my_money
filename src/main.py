@@ -8,6 +8,7 @@ from src.core.config.config import settings
 from src.core.exceptions.exception_handlers import register_exception_handlers
 from src.core.middlewares.middlewares import global_error_handler
 from src.routers.account import router as accounts_router
+from src.routers.analytics_widget import router as analytics_widgets_router
 from src.routers.balance import router as balances_router
 from src.routers.balance_group import router as balance_groups_router
 from src.routers.category import router as categories_router
@@ -57,6 +58,7 @@ app.include_router(currencies_router)
 app.include_router(categories_router)
 app.include_router(ledger_router)
 app.include_router(recurring_operations_router)
+app.include_router(analytics_widgets_router)
 
 
 if __name__ == "__main__":

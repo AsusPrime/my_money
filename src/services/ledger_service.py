@@ -1,13 +1,22 @@
+from datetime import date
 from datetime import datetime
 from datetime import timezone
 from decimal import Decimal
 from uuid import uuid4
+from dateutil.relativedelta import relativedelta
 from src.common.constants import DEFAULT_API_LIMIT
+from src.common.rounding import round_to_currency_precision
 from src.core.exceptions.exceptions import BadRequestError
 from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
 from src.entities.balance import BalanceEntity
-from src.enums.enums import LedgerReportGroupByEnum, LedgerReportMetricEnum, OperationTypeEnum
+from src.enums.enums import (
+    CurrencyTypeEnum,
+    LedgerReportGroupByEnum,
+    LedgerReportMetricEnum,
+    NetWorthBucketEnum,
+    OperationTypeEnum,
+)
 from src.schemas.ledger import (
     LedgerListResponseSchema,
     LedgerPageResponseSchema,
@@ -342,10 +351,10 @@ class LedgerService:
         metric: LedgerReportMetricEnum,
         date_start: datetime | None = None,
         date_end: datetime | None = None,
-        operation_type: OperationTypeEnum | None = None,
+        operation_types: list[OperationTypeEnum] | None = None,
         currency_ticker: str | None = None,
-        category_id: int | None = None,
-        balance_id: int | None = None,
+        category_ids: list[int] | None = None,
+        balance_ids: list[int] | None = None,
         account_id: int | None = None,
     ) -> LedgerReportResponseSchema:
         rows = await uow.ledgers.aggregate(
@@ -353,10 +362,10 @@ class LedgerService:
             metric=metric,
             date_start=date_start,
             date_end=date_end,
-            operation_type=operation_type,
+            operation_types=operation_types,
             currency_ticker=currency_ticker,
-            category_id=category_id,
-            balance_id=balance_id,
+            category_ids=category_ids,
+            balance_ids=balance_ids,
             account_id=account_id,
         )
 
@@ -379,3 +388,116 @@ class LedgerService:
         if hasattr(group_key, "value"):  # enum member, e.g. OperationTypeEnum
             return group_key.value
         return str(group_key)
+
+    @staticmethod
+    async def get_net_worth(
+        uow: IUnitOfWork,
+        currency_ticker: str,
+        group_by: NetWorthBucketEnum,
+        date_start: datetime | None = None,
+        date_end: datetime | None = None,
+        account_id: int | None = None,
+        balance_ids: list[int] | None = None,
+        currency_service: CurrencyService = CurrencyService(),
+        exchange_rate_service: ExchangeRateService = ExchangeRateService(),
+    ) -> LedgerReportResponseSchema:
+        if date_end is None:
+            date_end = datetime.now(timezone.utc)
+        if date_start is None:
+            earliest = await uow.ledgers.get_earliest_executed_at(
+                account_id=account_id, balance_ids=balance_ids
+            )
+            if earliest is None:
+                return LedgerReportResponseSchema(items=[])
+            date_start = earliest
+
+        rows = await uow.ledgers.get_rows_for_net_worth(
+            date_start=date_start,
+            date_end=date_end,
+            account_id=account_id,
+            balance_ids=balance_ids,
+        )
+
+        target_currency = await currency_service.get_currency_by_ticker(
+            uow=uow, ticker=currency_ticker
+        )
+        currency_types: dict[str, CurrencyTypeEnum] = {}
+        deltas_by_bucket: dict[date, Decimal] = {}
+
+        for executed_at, leg_currency, amount, base_currency_rate, account_base_currency in rows:
+            bucket = LedgerService._bucket_start(executed_at.date(), group_by.value)
+            amount = Decimal(amount)
+
+            if leg_currency == currency_ticker:
+                contribution = amount
+            elif base_currency_rate is not None and account_base_currency == currency_ticker:
+                contribution = amount * Decimal(base_currency_rate)
+            else:
+                if leg_currency not in currency_types:
+                    currency_obj = await currency_service.get_currency_by_ticker(
+                        uow=uow, ticker=leg_currency
+                    )
+                    currency_types[leg_currency] = currency_obj.currency_type
+                rate = await exchange_rate_service.get_current_rate(
+                    currency_ticker=leg_currency,
+                    base_currency_ticker=currency_ticker,
+                    currency_type=currency_types[leg_currency],
+                )
+                contribution = amount * rate
+
+            deltas_by_bucket[bucket] = deltas_by_bucket.get(bucket, Decimal("0")) + contribution
+
+        buckets = LedgerService._generate_buckets(
+            group_by.value, date_start.date(), date_end.date()
+        )
+
+        running_total = Decimal("0")
+        items: list[LedgerReportItemSchema] = []
+        for bucket in buckets:
+            running_total += deltas_by_bucket.get(bucket, Decimal("0"))
+            items.append(
+                LedgerReportItemSchema(
+                    group=bucket.isoformat(),
+                    value=round_to_currency_precision(
+                        running_total, target_currency.decimal_places
+                    ),
+                )
+            )
+
+        return LedgerReportResponseSchema(items=items)
+
+    @staticmethod
+    def _bucket_start(day: date, unit: str) -> date:
+        if unit == "day":
+            return day
+        if unit == "week":
+            return day - relativedelta(days=day.weekday())
+        if unit == "month":
+            return day.replace(day=1)
+        if unit == "quarter":
+            quarter_start_month = ((day.month - 1) // 3) * 3 + 1
+            return day.replace(month=quarter_start_month, day=1)
+        if unit == "year":
+            return day.replace(month=1, day=1)
+        raise ValueError(f"Unsupported bucket unit: {unit}")
+
+    @staticmethod
+    def _bucket_step(unit: str) -> relativedelta:
+        return {
+            "day": relativedelta(days=1),
+            "week": relativedelta(weeks=1),
+            "month": relativedelta(months=1),
+            "quarter": relativedelta(months=3),
+            "year": relativedelta(years=1),
+        }[unit]
+
+    @staticmethod
+    def _generate_buckets(unit: str, start: date, end: date) -> list[date]:
+        step = LedgerService._bucket_step(unit)
+        current = LedgerService._bucket_start(start, unit)
+        end_bucket = LedgerService._bucket_start(end, unit)
+        buckets = []
+        while current <= end_bucket:
+            buckets.append(current)
+            current = current + step
+        return buckets

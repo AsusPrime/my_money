@@ -23,6 +23,7 @@ class FakeUnitOfWork(IUnitOfWork):
         self.ledgers = AsyncMock()
         self.categories = AsyncMock()
         self.recurring_operations = AsyncMock()
+        self.analytics_widgets = AsyncMock()
         self.committed = False
         self.rolled_back = False
 
@@ -144,6 +145,32 @@ def make_ledger_row(
         note=note,
         executed_at=executed_at or datetime(2026, 1, 1, tzinfo=timezone.utc),
         base_currency_rate=base_currency_rate,
+    )
+
+
+def make_analytics_widget_row(
+    id: int = 1,
+    title: str = "Expenses by category",
+    chart_type: str = "bar",
+    group_by: str = "category",
+    metric: str = "sum",
+    filters: dict | None = None,
+    grid_x: int = 0,
+    grid_y: int = 0,
+    grid_w: int = 6,
+    grid_h: int = 4,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=id,
+        title=title,
+        chart_type=chart_type,
+        group_by=group_by,
+        metric=metric,
+        filters=filters if filters is not None else {},
+        grid_x=grid_x,
+        grid_y=grid_y,
+        grid_w=grid_w,
+        grid_h=grid_h,
     )
 
 
