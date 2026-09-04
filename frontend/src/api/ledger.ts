@@ -1,5 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { ACCOUNTS_KEY } from './accounts'
+import { BALANCES_KEY } from './balances'
 import { apiClient } from './client'
 import { getErrorMessage } from './errors'
 
@@ -73,6 +75,7 @@ export interface LedgerPage {
 
 const LEDGER_KEY = ['ledger']
 const OPERATION_GROUP_KEY = ['ledger-operation-group']
+const COUNTERPARTIES_KEY = ['counterparties']
 const LEDGER_PAGE_SIZE = 30
 
 async function fetchLedgerPage(balanceId: number, offset: number): Promise<LedgerPage> {
@@ -108,6 +111,18 @@ async function deleteOperation(id: number): Promise<void> {
   await apiClient.delete(`/ledger/operations/${id}`)
 }
 
+// reuses the existing flexible-report endpoint rather than a dedicated one —
+// grouping the whole ledger by counterparty already gives exactly the
+// distinct-names list a counterparty autocomplete needs
+async function fetchCounterparties(): Promise<string[]> {
+  const { data } = await apiClient.get<{ items: { group: string | null }[] }>('/ledger/report', {
+    params: { group_by: 'counterparty', metric: 'count' },
+  })
+  return data.items
+    .map((item) => item.group)
+    .filter((name): name is string => Boolean(name) && name !== 'Unknown')
+}
+
 export function useBalanceLedger(balanceId: number) {
   return useInfiniteQuery({
     queryKey: [...LEDGER_KEY, balanceId],
@@ -118,6 +133,10 @@ export function useBalanceLedger(balanceId: number) {
         ? allPages.reduce((loaded, page) => loaded + page.items.length, 0)
         : undefined,
   })
+}
+
+export function useCounterparties() {
+  return useQuery({ queryKey: COUNTERPARTIES_KEY, queryFn: fetchCounterparties })
 }
 
 export function useOperationGroup(ledgerId: number | null) {
@@ -134,6 +153,11 @@ export function useRecordOperation() {
     mutationFn: recordOperation,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: LEDGER_KEY })
+      queryClient.invalidateQueries({ queryKey: COUNTERPARTIES_KEY })
+      // a new operation changes the balance's (and account's) amounts/total —
+      // without this they'd stay stale until a manual page reload
+      queryClient.invalidateQueries({ queryKey: BALANCES_KEY })
+      queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY })
       toast.success('Operation recorded')
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -147,6 +171,7 @@ export function useUpdateLedgerEntry() {
       updateLedgerEntry(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: LEDGER_KEY })
+      queryClient.invalidateQueries({ queryKey: COUNTERPARTIES_KEY })
       toast.success('Ledger entry updated')
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -161,6 +186,9 @@ export function useReplaceOperation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: LEDGER_KEY })
       queryClient.invalidateQueries({ queryKey: OPERATION_GROUP_KEY })
+      queryClient.invalidateQueries({ queryKey: COUNTERPARTIES_KEY })
+      queryClient.invalidateQueries({ queryKey: BALANCES_KEY })
+      queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY })
       toast.success('Operation updated')
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -173,6 +201,8 @@ export function useDeleteOperation() {
     mutationFn: deleteOperation,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: LEDGER_KEY })
+      queryClient.invalidateQueries({ queryKey: BALANCES_KEY })
+      queryClient.invalidateQueries({ queryKey: ACCOUNTS_KEY })
       toast.success('Operation deleted')
     },
     onError: (error) => toast.error(getErrorMessage(error)),

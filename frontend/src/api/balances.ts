@@ -24,7 +24,7 @@ export interface BalanceUpdatePayload {
   group_id?: number | null
 }
 
-const BALANCES_KEY = ['balances']
+export const BALANCES_KEY = ['balances']
 const ALL_BALANCES_KEY = ['balances', 'all']
 
 async function fetchBalancesByAccount(accountId: number): Promise<Balance[]> {

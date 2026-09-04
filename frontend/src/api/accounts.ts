@@ -26,7 +26,7 @@ export interface AccountTotal {
   currency_ticker: string
 }
 
-const ACCOUNTS_KEY = ['accounts']
+export const ACCOUNTS_KEY = ['accounts']
 
 export async function fetchAccounts(): Promise<Account[]> {
   const { data } = await apiClient.get<{ items: Account[] }>('/accounts')

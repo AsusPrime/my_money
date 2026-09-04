@@ -5,6 +5,7 @@ import { useCategories, useCreateCategory } from '../api/categories'
 import { useCreateCurrency, useCurrencies, type CurrencyType } from '../api/currencies'
 import {
   useBalanceLedger,
+  useCounterparties,
   useDeleteOperation,
   useOperationGroup,
   useRecordOperation,
@@ -26,6 +27,7 @@ import {
 } from '../api/recurringOperations'
 import { formatAmount } from '../lib/format'
 import { localToUtcSchedule, utcToLocalSchedule } from '../lib/scheduleTimezone'
+import { resolveExistingCasing } from '../lib/text'
 
 const OPERATION_TYPES = ['income', 'expense', 'fee', 'transfer', 'trade'] as const
 type OperationType = (typeof OPERATION_TYPES)[number]
@@ -410,6 +412,37 @@ function CategoryField({
   )
 }
 
+function CounterpartyField({
+  value,
+  onChange,
+  className = fieldClass,
+  containerClassName = 'min-w-0',
+  placeholder = 'Counterparty (optional)',
+}: {
+  value: string
+  onChange: (value: string) => void
+  className?: string
+  containerClassName?: string
+  placeholder?: string
+}) {
+  const listId = useId()
+  const { data: counterparties } = useCounterparties()
+  return (
+    <div className={containerClassName}>
+      <input
+        list={listId}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={`w-full ${className}`}
+      />
+      <datalist id={listId}>
+        {counterparties?.map((name) => <option key={name} value={name} />)}
+      </datalist>
+    </div>
+  )
+}
+
 /* ----------------------------- ledger ----------------------------- */
 
 function categoryName(categoryId: number | null, categories: { id: number; name: string }[] | undefined) {
@@ -568,6 +601,7 @@ function EditOperationForm({
   const positiveLeg = primaryLegs.find((l) => Number(l.amount) > 0)
 
   const { data: allBalances } = useAllBalances()
+  const { data: counterparties } = useCounterparties()
   const replaceOperation = useReplaceOperation()
   const otherBalances = allBalances?.filter((b) => b.id !== balanceId) ?? []
 
@@ -609,7 +643,7 @@ function EditOperationForm({
         amount,
         currency_ticker: currencyTicker,
         category_id: categoryId,
-        counterparty: counterparty || undefined,
+        counterparty: resolveExistingCasing(counterparty, counterparties) || undefined,
         note: note || undefined,
         executed_at: executedAtIso,
         base_currency_rate: baseCurrencyRate || undefined,
@@ -671,11 +705,11 @@ function EditOperationForm({
           />
           <CurrencyField field={currencyField} className={inlineFieldClass} />
           <CategoryField field={categoryField} className={inlineFieldClass} />
-          <input
+          <CounterpartyField
             value={counterparty}
-            onChange={(e) => setCounterparty(e.target.value)}
-            placeholder="Counterparty (optional)"
-            className="min-w-32 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+            onChange={setCounterparty}
+            containerClassName="min-w-32 flex-1"
+            className={inlineFieldClass}
           />
         </div>
       )}
@@ -811,6 +845,7 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
   const [baseCurrencyRate, setBaseCurrencyRate] = useState('')
 
   const { data: allBalances } = useAllBalances()
+  const { data: counterparties } = useCounterparties()
   const recordOperation = useRecordOperation()
 
   const otherBalances = allBalances?.filter((b) => b.id !== balanceId) ?? []
@@ -852,7 +887,7 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
         amount,
         currency_ticker: currencyTicker,
         category_id: categoryId,
-        counterparty: counterparty || undefined,
+        counterparty: resolveExistingCasing(counterparty, counterparties) || undefined,
         note: note || undefined,
         executed_at: executedAtIso,
         base_currency_rate: baseCurrencyRate || undefined,
@@ -942,11 +977,11 @@ function RecordOperationForm({ balanceId, onDone }: { balanceId: number; onDone:
             <CategoryField field={categoryField} className={fieldClass} />
           </Field>
           <Field label="Counterparty">
-            <input
+            <CounterpartyField
               value={counterparty}
-              onChange={(e) => setCounterparty(e.target.value)}
-              placeholder="Optional"
+              onChange={setCounterparty}
               className={fieldClass}
+              placeholder="Optional"
             />
           </Field>
         </>
@@ -1206,6 +1241,7 @@ function RecurringOperationForm({
   )
   const [isActive, setIsActive] = useState(existing?.is_active ?? true)
 
+  const { data: counterparties } = useCounterparties()
   const createRecurringOperation = useCreateRecurringOperation()
   const updateRecurringOperation = useUpdateRecurringOperation()
 
@@ -1222,7 +1258,7 @@ function RecurringOperationForm({
         amount_mode: amountMode,
         amount_value: amountValue,
         category_id: categoryId,
-        counterparty: counterparty || undefined,
+        counterparty: resolveExistingCasing(counterparty, counterparties) || undefined,
         note: note || undefined,
         is_active: isActive,
       }
@@ -1252,7 +1288,7 @@ function RecurringOperationForm({
         amount_mode: amountMode,
         amount_value: amountValue,
         category_id: categoryId,
-        counterparty: counterparty || undefined,
+        counterparty: resolveExistingCasing(counterparty, counterparties) || undefined,
         note: note || undefined,
         interval,
         day_of_month: utcSchedule.dayOfMonth,
@@ -1310,11 +1346,11 @@ function RecurringOperationForm({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <input
+        <CounterpartyField
           value={counterparty}
-          onChange={(e) => setCounterparty(e.target.value)}
-          placeholder="Counterparty (optional)"
-          className="min-w-32 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:outline-none"
+          onChange={setCounterparty}
+          containerClassName="min-w-32 flex-1"
+          className={inlineFieldClass}
         />
         <input
           value={note}
