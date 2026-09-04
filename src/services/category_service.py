@@ -45,7 +45,9 @@ class CategoryService:
     async def update_category_by_id(
         uow: IUnitOfWork, category_id: int, category_data: CategoryUpdateSchema
     ) -> CategoryResponseSchema:
-        updated_category = await uow.categories.edit_one(id=category_id, data=category_data.model_dump())
+        updated_category = await uow.categories.edit_one(
+            id=category_id, data=category_data.model_dump(exclude_unset=True)
+        )
 
         if not updated_category:
             raise NotFoundError(Messages.CATEGORY_NOT_FOUND)

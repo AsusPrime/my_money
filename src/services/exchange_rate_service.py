@@ -7,6 +7,8 @@ from src.rate_providers.registry import get_rate_client
 
 
 class ExchangeRateService:
+    _historical_rate_cache: dict[tuple[str, str, CurrencyTypeEnum, str], Decimal] = {}
+
     @classmethod
     async def get_historical_rate(
         cls,
@@ -15,12 +17,24 @@ class ExchangeRateService:
         currency_type: CurrencyTypeEnum,
         rate_at: datetime,
     ) -> Decimal:
+        cache_key = (
+            currency_ticker,
+            base_currency_ticker,
+            currency_type,
+            rate_at.date().isoformat(),
+        )
+        cached = cls._historical_rate_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         client = get_rate_client(currency_type)
-        return await client.get_historical(
+        rate = await client.get_historical(
             currency_ticker=currency_ticker,
             base_currency_ticker=base_currency_ticker,
             rate_at=rate_at,
         )
+        cls._historical_rate_cache[cache_key] = rate
+        return rate
 
     @classmethod
     async def get_current_rate(

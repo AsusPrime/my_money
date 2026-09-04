@@ -220,5 +220,6 @@ __marimo__/
 # migrations
 src/migrations/versions/*
 
-# TASKS.md
+# auxiliary files
 TASKS.md
+note.md

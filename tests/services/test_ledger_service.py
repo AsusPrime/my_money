@@ -11,6 +11,9 @@ from src.core.exceptions.exceptions import BadRequestError
 from src.core.exceptions.exceptions import ConflictError
 from src.core.exceptions.exceptions import NotFoundError
 from src.core.messages.messages import Messages
+from src.enums.enums import LedgerReportGroupByEnum
+from src.enums.enums import LedgerReportMetricEnum
+from src.enums.enums import NetWorthBucketEnum
 from src.enums.enums import OperationTypeEnum
 from src.schemas.ledger import LedgerUpdateSchema
 from src.schemas.ledger import RecordSingleLegOperationPayload
@@ -1278,6 +1281,92 @@ class TestReplaceOperation:
         uow.ledgers.delete_one.assert_not_called()
 
 
+class TestGetReport:
+    async def test_formats_plain_string_groups_as_is(self, uow):
+        uow.ledgers.aggregate.return_value = [
+            ("Salary", Decimal("1000")),
+            ("Food", Decimal("-30")),
+        ]
+
+        result = await LedgerService.get_report(
+            uow=uow,
+            group_by=LedgerReportGroupByEnum.CATEGORY,
+            metric=LedgerReportMetricEnum.SUM,
+        )
+
+        assert [(i.group, i.value) for i in result.items] == [
+            ("Salary", Decimal("1000")),
+            ("Food", Decimal("-30")),
+        ]
+
+    async def test_formats_a_datetime_group_as_an_iso_date(self, uow):
+        uow.ledgers.aggregate.return_value = [
+            (datetime(2026, 1, 1, tzinfo=timezone.utc), Decimal("150")),
+        ]
+
+        result = await LedgerService.get_report(
+            uow=uow,
+            group_by=LedgerReportGroupByEnum.MONTH,
+            metric=LedgerReportMetricEnum.SUM,
+        )
+
+        assert result.items[0].group == "2026-01-01"
+
+    async def test_formats_an_enum_group_by_its_value(self, uow):
+        uow.ledgers.aggregate.return_value = [
+            (OperationTypeEnum.EXPENSE, Decimal("-40")),
+        ]
+
+        result = await LedgerService.get_report(
+            uow=uow,
+            group_by=LedgerReportGroupByEnum.OPERATION_TYPE,
+            metric=LedgerReportMetricEnum.SUM,
+        )
+
+        assert result.items[0].group == "expense"
+
+    async def test_treats_a_none_value_as_zero(self, uow):
+        uow.ledgers.aggregate.return_value = [("Empty", None)]
+
+        result = await LedgerService.get_report(
+            uow=uow,
+            group_by=LedgerReportGroupByEnum.CATEGORY,
+            metric=LedgerReportMetricEnum.SUM,
+        )
+
+        assert result.items[0].value == Decimal("0")
+
+    async def test_passes_filters_through_to_the_repository(self, uow):
+        uow.ledgers.aggregate.return_value = []
+        date_start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        date_end = datetime(2026, 2, 1, tzinfo=timezone.utc)
+
+        await LedgerService.get_report(
+            uow=uow,
+            group_by=LedgerReportGroupByEnum.CURRENCY_TICKER,
+            metric=LedgerReportMetricEnum.NET_OF_FEES,
+            date_start=date_start,
+            date_end=date_end,
+            operation_types=[OperationTypeEnum.EXPENSE],
+            currency_ticker="USD",
+            category_ids=[1],
+            balance_ids=[2],
+            account_id=3,
+        )
+
+        uow.ledgers.aggregate.assert_awaited_once_with(
+            group_by=LedgerReportGroupByEnum.CURRENCY_TICKER,
+            metric=LedgerReportMetricEnum.NET_OF_FEES,
+            date_start=date_start,
+            date_end=date_end,
+            operation_types=[OperationTypeEnum.EXPENSE],
+            currency_ticker="USD",
+            category_ids=[1],
+            balance_ids=[2],
+            account_id=3,
+        )
+
+
 class TestGetOperationsByBalanceId:
     async def test_has_more_false_when_fewer_rows_than_limit(self, uow):
         uow.ledgers.find_all_by_balance_id.return_value = [
@@ -1319,3 +1408,151 @@ class TestGetOperationsByBalanceId:
         uow.ledgers.find_all_by_balance_id.assert_awaited_once_with(
             balance_id=1, limit=11, offset=20
         )
+
+
+class TestGetNetWorth:
+    """Cumulative running total converted into currency_ticker, one point per
+    bucket, forward-filled across buckets with no activity. Deliberately
+    resolved from each leg's already-stored base_currency_rate rather than
+    re-fetching a historical rate — free providers turned out not to reliably
+    have history going back far enough (see the method's own docstring)."""
+
+    async def test_same_currency_legs_need_no_rate_lookup(self, uow):
+        uow.ledgers.get_rows_for_net_worth.return_value = [
+            (datetime(2026, 1, 5, tzinfo=timezone.utc), "UAH", Decimal("1000"), None, "UAH"),
+            (datetime(2026, 1, 20, tzinfo=timezone.utc), "UAH", Decimal("-200"), None, "UAH"),
+            (datetime(2026, 2, 10, tzinfo=timezone.utc), "UAH", Decimal("500"), None, "UAH"),
+        ]
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="UAH", decimal_places=2
+        )
+        exchange_rate_service = AsyncMock()
+
+        result = await LedgerService.get_net_worth(
+            uow=uow,
+            currency_ticker="UAH",
+            group_by=NetWorthBucketEnum.MONTH,
+            date_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            date_end=datetime(2026, 2, 28, tzinfo=timezone.utc),
+            exchange_rate_service=exchange_rate_service,
+        )
+
+        assert [(i.group, i.value) for i in result.items] == [
+            ("2026-01-01", Decimal("800")),
+            ("2026-02-01", Decimal("1300")),
+        ]
+        exchange_rate_service.get_current_rate.assert_not_awaited()
+
+    async def test_uses_the_legs_own_stored_base_currency_rate_when_it_matches_the_target(
+        self, uow
+    ):
+        uow.ledgers.get_rows_for_net_worth.return_value = [
+            (
+                datetime(2026, 1, 5, tzinfo=timezone.utc),
+                "EUR",
+                Decimal("100"),
+                Decimal("43.5"),
+                "UAH",
+            ),
+        ]
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="UAH", decimal_places=2
+        )
+        exchange_rate_service = AsyncMock()
+
+        result = await LedgerService.get_net_worth(
+            uow=uow,
+            currency_ticker="UAH",
+            group_by=NetWorthBucketEnum.MONTH,
+            date_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            date_end=datetime(2026, 1, 31, tzinfo=timezone.utc),
+            exchange_rate_service=exchange_rate_service,
+        )
+
+        assert result.items[0].value == Decimal("4350.0")
+        exchange_rate_service.get_current_rate.assert_not_awaited()
+
+    async def test_falls_back_to_a_live_rate_when_no_stored_rate_is_usable(self, uow):
+        # a trade leg recorded without resolve_base_currency_rate — a real gap
+        # seen in this app's own historical data (old BTC/USDT trade legs)
+        uow.ledgers.get_rows_for_net_worth.return_value = [
+            (
+                datetime(2026, 1, 5, tzinfo=timezone.utc),
+                "BTC",
+                Decimal("0.01"),
+                None,
+                "UAH",
+            ),
+        ]
+        uow.currencies.find_one_or_none.side_effect = [
+            make_currency_row(ticker="UAH", decimal_places=2),
+            make_currency_row(ticker="BTC", currency_type="crypto", decimal_places=8),
+        ]
+        exchange_rate_service = AsyncMock()
+        exchange_rate_service.get_current_rate.return_value = Decimal("2500000")
+
+        result = await LedgerService.get_net_worth(
+            uow=uow,
+            currency_ticker="UAH",
+            group_by=NetWorthBucketEnum.MONTH,
+            date_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            date_end=datetime(2026, 1, 31, tzinfo=timezone.utc),
+            exchange_rate_service=exchange_rate_service,
+        )
+
+        assert result.items[0].value == Decimal("25000.00")
+        exchange_rate_service.get_current_rate.assert_awaited_once_with(
+            currency_ticker="BTC", base_currency_ticker="UAH", currency_type="crypto"
+        )
+
+    async def test_forward_fills_buckets_with_no_activity(self, uow):
+        uow.ledgers.get_rows_for_net_worth.return_value = [
+            (datetime(2026, 1, 5, tzinfo=timezone.utc), "UAH", Decimal("1000"), None, "UAH"),
+        ]
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="UAH", decimal_places=2
+        )
+        exchange_rate_service = AsyncMock()
+
+        result = await LedgerService.get_net_worth(
+            uow=uow,
+            currency_ticker="UAH",
+            group_by=NetWorthBucketEnum.MONTH,
+            date_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            date_end=datetime(2026, 3, 31, tzinfo=timezone.utc),
+            exchange_rate_service=exchange_rate_service,
+        )
+
+        assert [(i.group, i.value) for i in result.items] == [
+            ("2026-01-01", Decimal("1000")),
+            ("2026-02-01", Decimal("1000")),
+            ("2026-03-01", Decimal("1000")),
+        ]
+
+    async def test_defaults_date_start_to_the_earliest_ledger_entry(self, uow):
+        uow.ledgers.get_earliest_executed_at.return_value = datetime(
+            2025, 11, 15, tzinfo=timezone.utc
+        )
+        uow.ledgers.get_rows_for_net_worth.return_value = []
+        uow.currencies.find_one_or_none.return_value = make_currency_row(
+            ticker="UAH", decimal_places=2
+        )
+
+        result = await LedgerService.get_net_worth(
+            uow=uow,
+            currency_ticker="UAH",
+            group_by=NetWorthBucketEnum.MONTH,
+            date_end=datetime(2026, 1, 15, tzinfo=timezone.utc),
+        )
+
+        assert [i.group for i in result.items] == ["2025-11-01", "2025-12-01", "2026-01-01"]
+
+    async def test_returns_empty_items_when_there_is_no_ledger_data_at_all(self, uow):
+        uow.ledgers.get_earliest_executed_at.return_value = None
+
+        result = await LedgerService.get_net_worth(
+            uow=uow, currency_ticker="UAH", group_by=NetWorthBucketEnum.MONTH
+        )
+
+        assert result.items == []
+        uow.ledgers.get_rows_for_net_worth.assert_not_awaited()

@@ -79,6 +79,7 @@ class TestUpdateCategoryById:
         )
 
         assert result.name == "New name"
+        uow.categories.edit_one.assert_awaited_once_with(id=1, data={"name": "New name"})
 
     async def test_raises_not_found_when_missing(self, uow):
         uow.categories.edit_one.return_value = None

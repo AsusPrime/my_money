@@ -1,8 +1,13 @@
+from datetime import datetime
+
 from fastapi import APIRouter
+from fastapi import Query
 from fastapi import status
 from loguru import logger
 
+from src.enums.enums import LedgerReportGroupByEnum, LedgerReportMetricEnum, NetWorthBucketEnum, OperationTypeEnum
 from src.schemas.ledger import LedgerListResponseSchema, RecordSingleLegOperationPayload, RecordTradePayload, RecordTransferPayload
+from src.schemas.ledger import LedgerReportResponseSchema
 from src.schemas.ledger import LedgerResponseSchema
 from src.schemas.ledger import LedgerUpdateSchema
 from src.services.dependencies.ledger_dep import LedgerServiceDep
@@ -12,6 +17,64 @@ router = APIRouter(
     prefix="/ledger",
     tags=["Ledger"],
 )
+
+
+@router.get(
+    "/report",
+    response_model=LedgerReportResponseSchema,
+    status_code=status.HTTP_200_OK,
+)
+async def get_ledger_report_api(
+    uow: UOWDep,
+    ledger_service: LedgerServiceDep,
+    group_by: LedgerReportGroupByEnum,
+    metric: LedgerReportMetricEnum,
+    date_start: datetime | None = None,
+    date_end: datetime | None = None,
+    operation_types: list[OperationTypeEnum] | None = Query(None),
+    currency_ticker: str | None = None,
+    category_ids: list[int] | None = Query(None),
+    balance_ids: list[int] | None = Query(None),
+    account_id: int | None = None,
+):
+    return await ledger_service.get_report(
+        uow=uow,
+        group_by=group_by,
+        metric=metric,
+        date_start=date_start,
+        date_end=date_end,
+        operation_types=operation_types,
+        currency_ticker=currency_ticker,
+        category_ids=category_ids,
+        balance_ids=balance_ids,
+        account_id=account_id,
+    )
+
+
+@router.get(
+    "/net-worth",
+    response_model=LedgerReportResponseSchema,
+    status_code=status.HTTP_200_OK,
+)
+async def get_net_worth_api(
+    uow: UOWDep,
+    ledger_service: LedgerServiceDep,
+    currency_ticker: str,
+    group_by: NetWorthBucketEnum,
+    date_start: datetime | None = None,
+    date_end: datetime | None = None,
+    account_id: int | None = None,
+    balance_ids: list[int] | None = Query(None),
+):
+    return await ledger_service.get_net_worth(
+        uow=uow,
+        currency_ticker=currency_ticker,
+        group_by=group_by,
+        date_start=date_start,
+        date_end=date_end,
+        account_id=account_id,
+        balance_ids=balance_ids,
+    )
 
 
 @router.post(

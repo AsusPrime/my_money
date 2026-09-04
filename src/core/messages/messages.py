@@ -53,6 +53,12 @@ class Messages(str, Enum):
     RECURRING_OPERATION_INVALID_SCHEDULE = (
         "The schedule fields don't match the given interval — see the logs for specifics"
     )
+    ANALYTICS_WIDGET_NOT_FOUND = "Analytics widget not found"
+    ERROR_FILLED_TO_ADD_NEW_ANALYTICS_WIDGET = "Error filled to add new analytics widget"
+    ANALYTICS_WIDGET_INVALID_NET_WORTH_CONFIG = (
+        "A net_worth widget needs a time-bucket group_by (day/week/month/quarter/year) "
+        "and filters.currency_ticker set to the currency to report the total in"
+    )
 
     def __str__(self):
         return self.value
